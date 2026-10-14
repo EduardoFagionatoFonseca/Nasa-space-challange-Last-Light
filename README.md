@@ -2,6 +2,8 @@
 
 Jogo curto de estratégia e sobrevivência lunar para Godot 4.7. Mantenha uma pequena base ativa por sete dias e prepare três etapas de resgate. Uma partida leva aproximadamente 10 a 15 minutos. Todo o texto do jogo está em português.
 
+![Base lunar de LAST LIGHT com recursos, módulos e centro de comando](media/gameplay.jpg)
+
 ## Jogar
 
 1. Instale o [Godot 4.7](https://godotengine.org/download/windows/) ou use a versão executável, se incluída na entrega.
