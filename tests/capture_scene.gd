@@ -19,4 +19,6 @@ func _capture() -> void:
 	var image: Image = root.get_texture().get_image()
 	image.save_png("res://test_capture_%s.png" % view)
 	print("CAPTURE ", image.get_size())
+	game.queue_free()
+	await create_timer(0.35).timeout
 	quit(0)

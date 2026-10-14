@@ -39,7 +39,7 @@ func _run() -> void:
 	MissionSave.clear()
 	print("UI TEST PASSED")
 	game.queue_free()
-	await process_frame
+	await create_timer(0.35).timeout
 	quit(0)
 
 func _assert(value: bool, label: String) -> void:

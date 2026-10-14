@@ -10,12 +10,12 @@ Ambiente local: Godot 4.7 estável, Windows, renderizador GL Compatibility, 1280
 - `assets_test.gd`: os sete modelos Kenney importam como meshes válidos e têm dimensões não nulas.
 - Captura visual local da cena principal em 1280 × 720: módulos, barras, botões, iluminação e textos aparecem no quadro.
 - Pacote PCK exportado pelo Godot 4.7 e iniciado com o executável Godot 4.7 para Windows. O processo encerrou normalmente tanto em modo gráfico quanto em modo sem janela.
+- O [workflow 38565961757](https://github.com/EduardoFagionatoFonseca/Nasa-space-challange-Last-Light/actions/runs/38565961757) concluiu com sucesso: importação, quatro scripts de teste, exportação Windows e Web e envio de ambos os artefatos.
 
 ## Limitações verificadas
 
 - O computador tem templates de exportação 4.6.1, incompatíveis com pacotes 4.7. Uma tentativa de usar o executável de template antigo falhou com `Pack version unsupported: 4`; ele foi substituído pela versão 4.7 na cópia local. O diretório `build/windows/` contém um pacote portátil funcional composto pelo executável do editor Godot 4.7 e `LAST_LIGHT.pck`, maior que uma exportação normal.
-- A build HTML5 ainda precisa dos templates de exportação 4.7. O workflow do GitHub baixa os templates correspondentes e tenta gerar Windows e Web; seu resultado precisa ser conferido na aba Actions. Nenhuma build web foi declarada testada localmente.
-- O teste de interface em modo sem janela termina com aviso de objetos remanescentes do próprio processo de teste, depois de reportar sucesso. Não houve erro de script ou falha de jogo nos cenários verificados.
+- A build Web foi gerada pelo GitHub com templates 4.7, mas ainda não foi aberta no navegador neste ambiente.
 
 ## Próxima validação humana
 

@@ -49,6 +49,8 @@ Veja os resultados executados em [TEST_REPORT.md](docs/TEST_REPORT.md).
 
 Abra o projeto no Godot 4.7. Em **Projeto > Exportar**, instale os templates **da mesma versão** do editor. Exporte os presets **Windows Desktop** e **Web** para `build/`. O renderizador é **GL Compatibility**, adequado ao caminho WebGL do Godot 4. O jogo não requer servidor ou API; a build web pode precisar de um servidor HTTP local para ser aberta no navegador, conforme as regras do navegador.
 
+O [workflow de builds no GitHub](https://github.com/EduardoFagionatoFonseca/Nasa-space-challange-Last-Light/actions/workflows/build.yml) executa os testes e publica os pacotes Windows e Web como artefatos. Abra uma execução concluída para baixá-los. Os artefatos expiram conforme a política do GitHub; o projeto e os presets permanecem no repositório para nova exportação.
+
 ## Créditos
 
 Conceito, código, interface, terreno 3D e áudio procedural foram criados para LAST LIGHT. Modelos selecionados do [Kenney Space Kit](https://kenney.nl/assets/space-kit), licença **CC0**: veja [License.txt](assets/kenney_space_kit/License.txt) e [ASSETS.md](docs/ASSETS.md). Motor: Godot 4.7. Fontes científicas públicas da NASA constam em [SCIENCE.md](docs/SCIENCE.md). Este jogo é um projeto independente e não é afiliado nem endossado pela NASA.

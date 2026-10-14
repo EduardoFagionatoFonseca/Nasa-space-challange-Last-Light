@@ -3,6 +3,14 @@ name: Test and export LAST LIGHT
 on:
   push:
     branches: [main]
+    paths:
+      - "project.godot"
+      - "export_presets.cfg"
+      - "scenes/**"
+      - "scripts/**"
+      - "assets/**"
+      - "tests/**"
+      - ".github/workflows/build.yml"
   workflow_dispatch:
 
 jobs:

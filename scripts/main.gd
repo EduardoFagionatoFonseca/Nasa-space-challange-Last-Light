@@ -28,6 +28,7 @@ var site_info: Label
 var site_action_button: Button
 var log_text: RichTextLabel
 var resource_bars: Dictionary = {}
+var resource_labels: Dictionary = {}
 var action_buttons: Dictionary = {}
 var anomaly_button: Button
 var selected_site: String = "habitat"
@@ -67,19 +68,34 @@ func _build_environment() -> void:
 	env.environment.ambient_light_energy = 0.42
 	env.environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	add_child(env)
-	# Earth is a softly lit planet above the horizon; original procedural mesh.
+	# Earth is an original procedural globe above the horizon.
 	var earth := MeshInstance3D.new(); var sphere := SphereMesh.new()
 	sphere.radial_segments = 24; sphere.rings = 12; earth.mesh = sphere
-	earth.position = Vector3(-6.5, -1.1, -9.0); earth.scale = Vector3.ONE * 0.85
-	var material := StandardMaterial3D.new(); material.albedo_color = Color("245d8b")
-	material.emission_enabled = true; material.emission = Color("1a4671"); material.emission_energy_multiplier = 0.6
-	earth.material_override = material; add_child(earth)
-	for i in range(48):
+	earth.position = Vector3(-6.5, -1.1, -9.0); earth.scale = Vector3.ONE * 1.08
+	var planet_shader := Shader.new()
+	planet_shader.code = """shader_type spatial;
+render_mode unshaded, cull_back;
+void fragment() {
+	float land = sin(UV.x * 9.0 + sin(UV.y * 8.0) * 1.5) * cos(UV.y * 13.0 - sin(UV.x * 5.0) * 1.2);
+	float cloud = sin(UV.x * 27.0 + UV.y * 8.0) * cos(UV.y * 20.0 - UV.x * 3.0);
+	vec3 color = mix(vec3(0.045, 0.24, 0.5), vec3(0.11, 0.38, 0.31), smoothstep(0.42, 0.65, land));
+	color = mix(color, vec3(0.78, 0.89, 0.94), smoothstep(0.65, 0.85, cloud) * 0.35);
+	ALBEDO = color;
+	EMISSION = color * 0.28;
+}"""
+	var planet_material := ShaderMaterial.new(); planet_material.shader = planet_shader
+	earth.material_override = planet_material; add_child(earth)
+	var screen_size: Vector2 = get_viewport().get_visible_rect().size
+	for i in range(54):
 		var star := MeshInstance3D.new(); var quad := SphereMesh.new(); quad.radial_segments = 4; quad.rings = 2
-		star.mesh = quad; star.position = Vector3(sin(i * 2.78) * 22.0, 6.5 + float(i % 9) * 1.9, -14.0 - float(i % 4) * 2.0)
-		star.scale = Vector3.ONE * (0.02 + float(i % 3) * 0.01)
+		var nx: float = fposmod(sin(float(i) * 78.233) * 43758.5453, 1.0)
+		var ny: float = fposmod(sin(float(i) * 13.913) * 25432.3531, 1.0)
+		var screen_point := Vector2(screen_size.x * (0.25 + nx * 0.5), screen_size.y * ((0.12 + ny * 0.13) if i < 27 else (0.78 + ny * 0.14)))
+		star.mesh = quad; star.position = camera.project_position(screen_point, 35.0)
+		star.scale = Vector3.ONE * (0.014 + float(i % 3) * 0.01)
 		var glow := StandardMaterial3D.new(); glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		glow.albedo_color = WHITE; star.material_override = glow; add_child(star)
+		glow.albedo_color = Color(0.8, 0.91, 1.0, 0.75); glow.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		star.material_override = glow; add_child(star)
 
 func _build_ui() -> void:
 	var layer := CanvasLayer.new(); add_child(layer)
@@ -92,6 +108,7 @@ func _build_ui() -> void:
 		var card := VBoxContainer.new(); card.custom_minimum_size.x = 183; top_row.add_child(card)
 		var title := _label(card, _resource_title(key), 13, MUTED)
 		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		resource_labels[key] = title
 		var bar := ProgressBar.new(); bar.custom_minimum_size = Vector2(172, 15)
 		bar.max_value = 100; bar.show_percentage = false
 		bar.add_theme_stylebox_override("background", _style(Color("253548"), 7))
@@ -149,9 +166,12 @@ func _build_ui() -> void:
 	var end_button := _button(right_column, "ENCERRAR DIA  →", true)
 	end_button.custom_minimum_size.y = 60
 	end_button.pressed.connect(_confirm_end_day)
-	var foot := _label(hud, "ARRASTE O OLHAR • CLIQUE NOS MÓDULOS PARA INSPECIONAR • UNIDADES DIDÁTICAS", 12, MUTED)
-	foot.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
-	foot.position = Vector2(-320, -25); foot.custom_minimum_size.x = 640
+	var foot := _label(hud, "CLIQUE NOS MÓDULOS PARA INSPECIONAR  •  UNIDADES DIDÁTICAS", 12, MUTED)
+	foot.anchor_left = 0.5; foot.anchor_right = 0.5
+	foot.anchor_top = 1.0; foot.anchor_bottom = 1.0
+	foot.offset_left = -300; foot.offset_right = 300
+	foot.offset_top = -28; foot.offset_bottom = -8
+	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	menu = ColorRect.new(); menu.color = Color(0.02, 0.04, 0.08, 0.82)
 	menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); hud.add_child(menu)
 	modal = ColorRect.new(); modal.color = Color(0.02, 0.04, 0.08, 0.77)
@@ -375,6 +395,7 @@ func _refresh() -> void:
 	for key in resource_bars:
 		var bar: ProgressBar = resource_bars[key]
 		bar.value = int(model.resources[key])
+		resource_labels[key].text = "%s  %d" % [_resource_title(key), int(model.resources[key])]
 		bar.tooltip_text = "%s: %d / 100" % [_resource_title(key), int(model.resources[key])]
 		bar.add_theme_stylebox_override("fill", _style(RED if int(model.resources[key]) <= 18 else (WARM if key == "supplies" else CYAN), 7))
 	for action in action_buttons:
