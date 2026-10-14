@@ -25,6 +25,7 @@ var actions_label: Label
 var rescue_label: Label
 var site_title: Label
 var site_info: Label
+var site_action_button: Button
 var log_text: RichTextLabel
 var resource_bars: Dictionary = {}
 var action_buttons: Dictionary = {}
@@ -112,7 +113,10 @@ func _build_ui() -> void:
 	module_header.custom_minimum_size.y = 24
 	site_title = _label(left_column, "", 20, WHITE)
 	site_info = _label(left_column, "", 14, MUTED); site_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	site_info.custom_minimum_size.y = 110
+	site_info.custom_minimum_size.y = 76
+	site_action_button = _button(left_column, "", true)
+	site_action_button.custom_minimum_size.y = 42
+	site_action_button.pressed.connect(_on_site_action)
 	var science_button := _button(left_column, "RELATÓRIO CIENTÍFICO  ↗", false)
 	science_button.pressed.connect(_show_science)
 	_add_divider(left_column)
@@ -136,6 +140,7 @@ func _build_ui() -> void:
 		var button := _button(right_column, text_value, true)
 		button.custom_minimum_size.y = 70
 		button.pressed.connect(_on_action.bind(action))
+		button.tooltip_text = str(spec["tip"])
 		action_buttons[action] = button
 	anomaly_button = _button(right_column, "INVESTIGAR ANOMALIA\nEnergia 4  •  +ciência", true)
 	anomaly_button.custom_minimum_size.y = 62
@@ -233,8 +238,8 @@ func _show_menu() -> void:
 	start.pressed.connect(_new_game)
 	var continue_button := _button(box, "CONTINUAR", false); continue_button.custom_minimum_size.y = 48
 	continue_button.disabled = not MissionSave.exists(); continue_button.pressed.connect(_continue_game)
-	var settings := _button(box, "CONFIGURAÇÕES", false); settings.pressed.connect(_show_settings)
-	var credits := _button(box, "CRÉDITOS E FONTES", false); credits.pressed.connect(_show_credits)
+	var settings := _button(box, "CONFIGURAÇÕES", false); settings.custom_minimum_size.y = 48; settings.pressed.connect(_show_settings)
+	var credits := _button(box, "CRÉDITOS E FONTES", false); credits.custom_minimum_size.y = 48; credits.pressed.connect(_show_credits)
 
 func _new_game() -> void:
 	MissionSave.clear(); model = MissionModel.new(); tutorial_seen = false
@@ -275,20 +280,33 @@ func _confirm_end_day() -> void:
 
 func _end_day() -> void:
 	modal.visible = false
+	var previous: Dictionary = model.resources.duplicate(true)
+	var previous_shelter: int = model.shelter
 	model.end_day(); MissionSave.save(model); _refresh()
 	sound.cue("failure" if model.ended and not model.won else ("warning" if model.day == 4 or model.day == 6 else "click"))
 	if model.ended: _show_result()
-	else: _show_day_report()
+	else: _show_day_report(previous, previous_shelter)
 
-func _show_day_report() -> void:
-	_show_modal("DIA %d • %s" % [model.day, MissionConfig.DAY_TITLES[model.day]], MissionConfig.DAY_BRIEFS[model.day], [
+func _show_day_report(previous: Dictionary, previous_shelter: int) -> void:
+	var changes: Array[String] = []
+	for key in ["energy", "oxygen", "water", "supplies"]:
+		var difference: int = int(model.resources[key]) - int(previous[key])
+		changes.append("%s %+d" % [_resource_title(key), difference])
+	var body: String = MissionConfig.DAY_BRIEFS[model.day]
+	body += "\n\nBALANÇO DO DIA ANTERIOR\n" + "  •  ".join(changes)
+	if model.shelter != previous_shelter:
+		body += "\nAbrigo %+d" % (model.shelter - previous_shelter)
+	body += "\n\n" + model.log.back()
+	_show_modal("DIA %d • %s" % [model.day, MissionConfig.DAY_TITLES[model.day]], body, [
 		{"text": "ABRIR CENTRO DE COMANDO", "call": func(): modal.visible = false}
 	])
 
 func _show_result() -> void:
 	var title: String = "MISSÃO CONCLUÍDA" if model.won else "MISSÃO ENCERRADA"
 	var content: String = model.outcome + "\n\nPONTUAÇÃO: %d\nResgate: %d/3  •  Ciência: %d/1  •  Abrigo: %d/100\n\n" % [model.score(), model.rescue, model.science, model.shelter]
-	content += "As decisões mais importantes constam do registro à esquerda. Os valores são unidades didáticas."
+	content += "PAINÉIS: %s  •  FILTRO: %s\n" % ["operacionais" if model.panels_ok else "avariados", "operacional" if model.recycler_ok else "avariado"]
+	content += "PESQUISA: %s\n\n" % ("anomalia investigada" if model.science > 0 else "não realizada")
+	content += "Os valores são unidades didáticas. O registro à esquerda mostra a sequência completa da missão."
 	_show_modal(title, content, [
 		{"text": "RELATÓRIO CIENTÍFICO", "call": _show_science},
 		{"text": "NOVA MISSÃO", "call": _new_game},
@@ -301,7 +319,7 @@ func _show_science() -> void:
 	science_text += "ENERGIA • Energia e armazenamento devem sustentar sistemas mesmo com falhas e iluminação variável.\n\n"
 	science_text += "RADIAÇÃO • Eventos solares exigem proteção. A integridade do abrigo é uma abstração didática.\n\n"
 	science_text += "CULTIVO • Plantas precisam de ambiente controlado, água, luz e nutrientes; a colheita em poucos dias é aceleração de gameplay.\n\n"
-	science_text += "Fontes: nasa.gov/reference/environmental-control-and-life-support-systems-eclss/ • nasa.gov/lunar-surface-technology/ • science.nasa.gov/biological-physical/the-challenges-of-growing-plants-in-space/"
+	science_text += "Fontes: NASA ECLSS, Lunar Surface Technology, Space Radiation e Biological & Physical Sciences. Links completos em docs/SCIENCE.md."
 	_show_modal("RELATÓRIO CIENTÍFICO", science_text, [{"text": "FECHAR", "call": func(): modal.visible = false}])
 
 func _show_credits() -> void:
@@ -317,7 +335,8 @@ func _show_settings() -> void:
 func _show_modal(title: String, body: String, buttons: Array) -> void:
 	modal.visible = true
 	for child in modal_box.get_children(): child.queue_free()
-	_label(modal_box, title, 25, WARM if title.contains("DIA") else WHITE)
+	var title_color: Color = CYAN if title == "MISSÃO CONCLUÍDA" else (RED if title == "MISSÃO ENCERRADA" else (WARM if title.contains("DIA") else WHITE))
+	_label(modal_box, title, 25, title_color)
 	_add_divider(modal_box)
 	var content := _label(modal_box, body, 15, MUTED)
 	content.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -338,6 +357,11 @@ func _on_anomaly() -> void:
 
 func _on_site_selected(site: String) -> void:
 	selected_site = site; _refresh_site()
+
+func _on_site_action() -> void:
+	var site_actions := {"solar": "solar", "oxygen": "oxygen", "water": "water", "greenhouse": "food", "shelter": "shelter", "antenna": "rescue"}
+	if site_actions.has(selected_site):
+		_on_action(str(site_actions[selected_site]))
 
 func _refresh() -> void:
 	world.set_model(model)
@@ -366,6 +390,12 @@ func _refresh_site() -> void:
 	var key: String = "antenna" if selected_site == "landing" else selected_site
 	site_title.text = names.get(selected_site, selected_site)
 	site_info.text = MissionConfig.SCIENCE.get(key, "Área reservada à nave de resgate.")
+	var site_actions := {"solar": "solar", "oxygen": "oxygen", "water": "water", "greenhouse": "food", "shelter": "shelter", "antenna": "rescue"}
+	site_action_button.visible = site_actions.has(selected_site)
+	if site_action_button.visible:
+		var action: String = str(site_actions[selected_site])
+		site_action_button.text = str(MissionConfig.ACTIONS[action]["title"]).to_upper() + "  →"
+		site_action_button.disabled = not model.can_do(action)
 
 func _forecast() -> String:
 	match model.day:

@@ -1,6 +1,7 @@
 .godot/
 .appdata/
 .localappdata/
+.tmp/
 .godot-data/
 .godot-config/
 .godot-cache/
@@ -9,3 +10,5 @@ build/
 *.tmp
 test_capture.png
 test_capture.png.import
+test_capture_*.png
+test_capture_*.png.import

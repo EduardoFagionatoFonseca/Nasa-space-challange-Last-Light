@@ -38,6 +38,8 @@ func _run() -> void:
 	_assert(restored != null and restored.won and restored.score() == game.model.score(), "restored result")
 	MissionSave.clear()
 	print("UI TEST PASSED")
+	game.queue_free()
+	await process_frame
 	quit(0)
 
 func _assert(value: bool, label: String) -> void:

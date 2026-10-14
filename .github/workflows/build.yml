@@ -1,0 +1,58 @@
+name: Test and export LAST LIGHT
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  game:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.7 and matching export templates
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://github.com/godotengine/godot-builds/releases/download/4.7-stable"
+          curl -fL --retry 3 "$base/Godot_v4.7-stable_linux.x86_64.zip" -o /tmp/godot.zip
+          curl -fL --retry 3 "$base/Godot_v4.7-stable_export_templates.tpz" -o /tmp/templates.tpz
+          mkdir -p "$HOME/.local/bin" "$HOME/.local/share/godot/export_templates/4.7.stable"
+          unzip -q /tmp/godot.zip -d "$HOME/.local/bin"
+          mv "$HOME/.local/bin/Godot_v4.7-stable_linux.x86_64" "$HOME/.local/bin/godot"
+          chmod +x "$HOME/.local/bin/godot"
+          unzip -q -j /tmp/templates.tpz -d "$HOME/.local/share/godot/export_templates/4.7.stable"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Import assets
+        run: godot --headless --editor --path . --import --quit
+      - name: Test gameplay and assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for test in model_test ui_test assets_test balance_test; do
+            godot --headless --path . --script "res://tests/$test.gd"
+          done
+      - name: Export Windows and Web
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/windows build/web
+          godot --headless --path . --export-release "Windows Desktop" build/windows/LAST_LIGHT.exe
+          godot --headless --path . --export-release "Web" build/web/index.html
+          test -s build/windows/LAST_LIGHT.exe
+          test -s build/web/index.html
+          cp legal/GODOT_LICENSE.txt build/windows/GODOT_LICENSE.txt
+          cp legal/GODOT_LICENSE.txt build/web/GODOT_LICENSE.txt
+          cp assets/kenney_space_kit/License.txt build/windows/KENNEY_LICENSE.txt
+          cp assets/kenney_space_kit/License.txt build/web/KENNEY_LICENSE.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LAST_LIGHT_Windows
+          path: build/windows/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LAST_LIGHT_Web
+          path: build/web/
+          if-no-files-found: error
