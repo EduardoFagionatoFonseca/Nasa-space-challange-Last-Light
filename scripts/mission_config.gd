@@ -2,9 +2,9 @@ class_name MissionConfig
 extends RefCounted
 
 const MAX_RESOURCE := 100
-const START := {"energy": 50, "oxygen": 66, "water": 64, "supplies": 56}
+const START := {"energy": 70, "oxygen": 66, "water": 64, "supplies": 75}
 const ACTIONS := {
-	"solar": {"title": "Reparar painéis", "cost": {"energy": 3, "supplies": 6}, "gain": {"energy": 8}, "site": "solar", "tip": "Restaura a geração e recupera energia da bateria."},
+	"solar": {"title": "Reparar painéis", "cost": {"energy": 3, "supplies": 6}, "gain": {"energy": 20}, "site": "solar", "tip": "Restaura a geração e recupera energia da bateria."},
 	"oxygen": {"title": "Produzir oxigênio", "cost": {"energy": 8, "water": 4}, "gain": {"oxygen": 23}, "site": "oxygen", "tip": "Eletrólise usa eletricidade para separar água em oxigênio e hidrogênio."},
 	"water": {"title": "Reciclar água", "cost": {"energy": 6, "supplies": 3}, "gain": {"water": 19}, "site": "water", "tip": "Recupera água usada pela tripulação e troca filtros se necessário."},
 	"food": {"title": "Cultivar alimentos", "cost": {"energy": 7, "water": 6}, "gain": {"supplies": 19}, "site": "greenhouse", "tip": "Produção acelerada é uma simplificação didática."},

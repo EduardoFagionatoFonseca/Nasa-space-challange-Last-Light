@@ -11,6 +11,7 @@ const RED := Color("ea695d")
 
 var site_nodes: Dictionary = {}
 var rings: Dictionary = {}
+var markers: Dictionary = {}
 var animated: Array[Node3D] = []
 var panel_pivots: Array[Node3D] = []
 var beacon: OmniLight3D
@@ -24,15 +25,16 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	clock += delta
-	if astronaut:
-		astronaut.position = Vector3(1.15 + sin(clock * 0.48) * 0.7, 0.52, 3.0 + cos(clock * 0.48) * 0.42)
-		astronaut.rotation.y = clock * 0.48
 	for pivot in panel_pivots:
 		pivot.rotation.y = sin(clock * 0.16) * 0.12
 	if beacon:
 		beacon.light_energy = 1.5 + sin(clock * 3.0) * 0.55
 	for item in animated:
 		item.rotation.y += delta * 0.11
+	for site in markers:
+		if markers[site].visible:
+			markers[site].position.y = 2.15 + sin(clock * 3.0) * 0.14
+			markers[site].rotation.y += delta * 1.7
 
 func set_model(value: MissionModel) -> void:
 	model = value
@@ -50,6 +52,7 @@ func select_site(site: String) -> void:
 	active_site = site
 	for key in rings:
 		rings[key].visible = key == site
+		markers[key].visible = key == site
 	site_selected.emit(site)
 
 func pick_from_screen(camera: Camera3D, point: Vector2) -> void:
@@ -104,7 +107,7 @@ func _build() -> void:
 	_astronaut()
 	_import_mesh(self, "rover", Vector3(-2.0, 0.09, 3.5), Vector3.ONE * 1.65)
 	_import_mesh(self, "machine_generator", Vector3(-3.15, 0.17, 0.4), Vector3.ONE * 1.1)
-	select_site("habitat")
+	select_site("")
 
 func _habitat(site: String, pos: Vector3, radius: float, glow: Color) -> void:
 	var root := Node3D.new(); root.name = site.capitalize(); root.position = pos; add_child(root)
@@ -176,7 +179,8 @@ func _landing_pad(pos: Vector3) -> void:
 
 func _astronaut() -> void:
 	astronaut = Node3D.new(); astronaut.name = "Astronaut"; add_child(astronaut)
-	_import_mesh(astronaut, "astronautA", Vector3.ZERO, Vector3.ONE * 0.88)
+	astronaut.position = Vector3(1.85, 0.42, 3.58)
+	_import_mesh(astronaut, "astronautA", Vector3.ZERO, Vector3.ONE * 1.22)
 
 func _corridor(start: Vector3, end: Vector3) -> void:
 	var midpoint: Vector3 = (start + end) / 2.0
@@ -198,6 +202,13 @@ func _register(site: String, root: Node3D, radius: float) -> void:
 		segment.rotation.y = -a
 	ring.visible = false
 	rings[site] = ring
+	var marker := Node3D.new(); root.add_child(marker)
+	var diamond := SphereMesh.new(); diamond.radial_segments = 4; diamond.rings = 2
+	_add_mesh(marker, diamond, Vector3.ZERO, Vector3(0.22, 0.36, 0.22), _mat(WARM, true))
+	var stem := CylinderMesh.new(); stem.top_radius = 0.018; stem.bottom_radius = 0.018; stem.height = 0.55
+	_add_mesh(marker, stem, Vector3(0, -0.46, 0), Vector3.ONE, _mat(WARM, true))
+	marker.visible = false
+	markers[site] = marker
 
 func _add_mesh(parent: Node3D, mesh: Mesh, pos: Vector3, size: Vector3, material: Material) -> MeshInstance3D:
 	var node := MeshInstance3D.new(); node.mesh = mesh; node.position = pos; node.scale = size
