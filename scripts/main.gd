@@ -99,7 +99,9 @@ void fragment() {
 
 func _build_ui() -> void:
 	var layer := CanvasLayer.new(); add_child(layer)
-	hud = Control.new(); hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); layer.add_child(hud)
+	hud = Control.new(); hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(hud)
 	var top := _panel(hud, Vector2(20, 16), Vector2(-20, 94), true)
 	var top_row := HBoxContainer.new(); top_row.add_theme_constant_override("separation", 18); top.add_child(top_row)
 	var brand := _label(top_row, "LAST LIGHT", 27, WHITE); brand.custom_minimum_size.x = 245

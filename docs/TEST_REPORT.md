@@ -6,7 +6,7 @@ Ambiente local: Godot 4.7 estável, Windows, renderizador GL Compatibility, 1280
 
 - `model_test.gd`: estado inicial, custo de ações, eventos dos sete dias, reparos, caminho completo de vitória, salvamento e derrota na tempestade.
 - `balance_test.gd`: vitória com e sem investigação científica (pontuações 125 e 114), falha por resgate incompleto, falha de abrigo e falha por oxigênio zerado.
-- `ui_test.gd`: iniciar missão, avançar pelos sete dias via interface do jogo, salvar e restaurar a vitória.
+- `ui_test.gd`: iniciar missão, selecionar a antena pelo cenário 3D, executar a ação contextual, avançar pelos sete dias, salvar e restaurar a vitória.
 - `assets_test.gd`: os sete modelos Kenney importam como meshes válidos e têm dimensões não nulas.
 - Captura visual local da cena principal em 1280 × 720: módulos, barras, botões, iluminação e textos aparecem no quadro.
 - Pacote PCK exportado pelo Godot 4.7 e iniciado com o executável Godot 4.7 para Windows. O processo encerrou normalmente tanto em modo gráfico quanto em modo sem janela.

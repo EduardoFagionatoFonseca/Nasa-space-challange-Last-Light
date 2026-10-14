@@ -10,7 +10,19 @@ func _run() -> void:
 	game._new_game()
 	game.modal.visible = false
 	_assert(game.model.day == 1 and not game.menu.visible, "start button")
-	game._on_action("rescue")
+	_assert(game.hud.mouse_filter == Control.MOUSE_FILTER_IGNORE, "scene clicks pass through HUD")
+	game.world.select_site("habitat")
+	_assert(not game.site_action_button.visible, "habitat has no action")
+	await physics_frame
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	click.position = game.camera.unproject_position(game.world.site_nodes["antenna"].global_position + Vector3(0, 0.65, 0))
+	game._unhandled_input(click)
+	_assert(game.selected_site == "antenna", "scene ray selects antenna")
+	_assert(game.site_action_button.visible and not game.site_action_button.disabled, "context action available")
+	game.site_action_button.pressed.emit()
+	_assert(game.model.rescue == 1, "context action executes rescue preparation")
 	game._end_day()
 	_assert(game.model.day == 2 and MissionSave.exists(), "day advancement and autosave")
 	game.modal.visible = false
