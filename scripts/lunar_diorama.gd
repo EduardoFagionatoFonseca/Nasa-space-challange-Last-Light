@@ -12,6 +12,7 @@ const RED := Color("ea695d")
 var site_nodes: Dictionary = {}
 var rings: Dictionary = {}
 var markers: Dictionary = {}
+var alerts: Dictionary = {}
 var animated: Array[Node3D] = []
 var panel_pivots: Array[Node3D] = []
 var beacon: OmniLight3D
@@ -35,6 +36,9 @@ func _process(delta: float) -> void:
 		if markers[site].visible:
 			markers[site].position.y = 2.15 + sin(clock * 3.0) * 0.14
 			markers[site].rotation.y += delta * 1.7
+	for site in alerts:
+		if alerts[site].visible:
+			alerts[site].light_energy = 1.5 + sin(clock * 6.0) * 1.0
 
 func set_model(value: MissionModel) -> void:
 	model = value
@@ -47,6 +51,11 @@ func set_model(value: MissionModel) -> void:
 	if site_nodes.has("greenhouse"):
 		var lamp: OmniLight3D = site_nodes["greenhouse"].get_node("Glow")
 		lamp.light_energy = 2.0 if int(model.resources["water"]) > 18 else 0.6
+	alerts["solar"].visible = not model.panels_ok
+	alerts["water"].visible = not model.recycler_ok
+	alerts["oxygen"].visible = model.leak
+	alerts["antenna"].visible = not model.comms_ok
+	alerts["shelter"].visible = model.day == 4 and model.shelter < 60
 
 func select_site(site: String) -> void:
 	active_site = site
@@ -179,8 +188,9 @@ func _landing_pad(pos: Vector3) -> void:
 
 func _astronaut() -> void:
 	astronaut = Node3D.new(); astronaut.name = "Astronaut"; add_child(astronaut)
-	astronaut.position = Vector3(1.85, 0.42, 3.58)
+	astronaut.position = Vector3(1.85, 0.17, 3.58)
 	_import_mesh(astronaut, "astronautA", Vector3.ZERO, Vector3.ONE * 1.22)
+	_add_light(astronaut, Vector3(0, 0.72, 0), CYAN, 0.58, 2.35)
 
 func _corridor(start: Vector3, end: Vector3) -> void:
 	var midpoint: Vector3 = (start + end) / 2.0
@@ -209,6 +219,9 @@ func _register(site: String, root: Node3D, radius: float) -> void:
 	_add_mesh(marker, stem, Vector3(0, -0.46, 0), Vector3.ONE, _mat(WARM, true))
 	marker.visible = false
 	markers[site] = marker
+	var alert := _add_light(root, Vector3(0, 1.5, 0), RED, 1.5, radius + 2.1)
+	alert.visible = false
+	alerts[site] = alert
 
 func _add_mesh(parent: Node3D, mesh: Mesh, pos: Vector3, size: Vector3, material: Material) -> MeshInstance3D:
 	var node := MeshInstance3D.new(); node.mesh = mesh; node.position = pos; node.scale = size

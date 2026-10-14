@@ -12,13 +12,22 @@ func _run() -> void:
 	_assert(game.model.day == 1 and not game.menu.visible, "mission starts")
 	_assert(game.hud.mouse_filter == Control.MOUSE_FILTER_IGNORE, "world input passes through HUD")
 	_assert(game.objective_site == "antenna", "first objective points to rescue")
-	game.world.astronaut.position = Vector3(1.1, 0.42, 1.1)
+	var antenna_point: Vector2 = game.camera.unproject_position(game.world.site_nodes["antenna"].global_position + Vector3(0, 1.0, 0))
+	game._click_to_walk(antenna_point)
+	for i in range(180): game._move_player(1.0 / 60.0)
+	game._update_nearby()
+	_assert(game.nearby_site == "antenna", "clicking a module walks into interaction range")
+	game.world.astronaut.position = Vector3(1.1, 0.17, 1.1)
 	game._update_nearby()
 	_assert(game.nearby_site == "habitat", "habitat reached physically")
 	game._click_to_walk(Vector2(800, 430))
 	_assert(game.move_target != Vector3.INF, "click sets walking destination")
+	game.move_target = Vector3(2.3, 0.17, 1.5)
+	var before: Vector3 = game.world.astronaut.position
+	game._move_player(0.12)
+	_assert(game.world.astronaut.position.distance_to(before) > 0.05, "astronaut walks toward destination")
 	game.move_target = Vector3.INF
-	game.world.astronaut.position = Vector3(1.85, 0.42, 3.58)
+	game.world.astronaut.position = Vector3(1.85, 0.17, 3.58)
 	game._update_nearby()
 	game._interact()
 	_assert(game.repair_action == "", "cannot repair without reaching module")
@@ -64,10 +73,16 @@ func _repair(game: Node3D, action: String) -> void:
 	if site == "greenhouse": offset = Vector3(0, 0.25, -1.5)
 	if site == "shelter": offset = Vector3(-1.3, 0.25, 0)
 	game.world.astronaut.position = center + offset
+	game.world.astronaut.position.y = 0.17
 	game._update_nearby()
 	_assert(game.nearby_site == site, "%s approached" % site)
 	game._interact()
 	_assert(game.repair_action == action, "%s starts calibration" % action)
+	if action == "rescue" and game.model.day == 1:
+		var actions_before: int = game.model.actions_left
+		game.gauge_needle.position.x = 0.0
+		game._check_repair()
+		_assert(game.repair_hits == 0 and game.model.actions_left == actions_before, "missed pulse does not spend action")
 	for step in range(2):
 		game.gauge_needle.position.x = game.repair_target * maxf(1.0, game.gauge.size.x - 5.0)
 		game._check_repair()
@@ -75,7 +90,7 @@ func _repair(game: Node3D, action: String) -> void:
 
 func _end_day(game: Node3D) -> void:
 	_assert(game.model.actions_left == 0, "two repairs complete")
-	game.world.astronaut.position = Vector3(1.1, 0.42, 1.1)
+	game.world.astronaut.position = Vector3(1.1, 0.17, 1.1)
 	game._update_nearby()
 	_assert(game.nearby_site == "habitat", "return to habitat")
 	game._interact()

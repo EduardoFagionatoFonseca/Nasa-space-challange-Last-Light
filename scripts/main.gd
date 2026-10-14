@@ -6,6 +6,7 @@ const RED := Color("ea695d")
 const WHITE := Color("e8edf1")
 const MUTED := Color("a2afbf")
 const PANEL := Color(0.045, 0.075, 0.12, 0.84)
+const PLAYER_Y := 0.17
 const SITE_ACTIONS := {"solar": "solar", "oxygen": "oxygen", "water": "water", "greenhouse": "food", "shelter": "shelter", "antenna": "rescue"}
 const SITE_NAMES := {"habitat": "habitat", "solar": "painéis solares", "oxygen": "módulo de oxigênio", "water": "reciclador de água", "greenhouse": "estufa", "shelter": "abrigo", "antenna": "antena", "landing": "plataforma de pouso"}
 const DAILY_ROUTE := {
@@ -208,7 +209,7 @@ func _move_player(delta: float) -> void:
 		if delta_to.length() > 0.15: direction = delta_to.normalized()
 		else: move_target = Vector3.INF
 	if direction == Vector3.ZERO:
-		world.astronaut.position.y = lerpf(world.astronaut.position.y, 0.42, minf(1.0, delta * 10.0))
+		world.astronaut.position.y = lerpf(world.astronaut.position.y, PLAYER_Y, minf(1.0, delta * 10.0))
 		return
 	var next: Vector3 = world.astronaut.position + direction * delta * 2.75
 	var flat := Vector2(next.x, next.z)
@@ -219,13 +220,30 @@ func _move_player(delta: float) -> void:
 		var radius: float = 1.16 if site == "habitat" else (1.08 if site == "greenhouse" else (0.94 if site in ["oxygen", "water", "shelter"] else 0.43))
 		var offset := flat - Vector2(center.x, center.z)
 		if offset.length() < radius:
+			if offset.length() < 0.001: offset = Vector2.RIGHT
 			flat = Vector2(center.x, center.z) + offset.normalized() * radius
 	world.astronaut.position.x = flat.x; world.astronaut.position.z = flat.y
 	world.astronaut.rotation.y = lerp_angle(world.astronaut.rotation.y, atan2(direction.x, direction.z), minf(1.0, delta * 12.0))
 	walk_clock += delta * 13.0
-	world.astronaut.position.y = 0.42 + absf(sin(walk_clock)) * 0.055
+	world.astronaut.position.y = PLAYER_Y + absf(sin(walk_clock)) * 0.055
 
 func _click_to_walk(point: Vector2) -> void:
+	var clicked := ""
+	var distance := 54.0
+	for site in world.site_nodes:
+		var node: Node3D = world.site_nodes[site]
+		var screen_point: Vector2 = camera.unproject_position(node.global_position + Vector3(0, 1.0, 0))
+		var candidate: float = point.distance_to(screen_point)
+		if candidate < distance:
+			distance = candidate; clicked = site
+	if clicked != "":
+		var center: Vector3 = world.site_nodes[clicked].position
+		var approach: Vector3 = world.astronaut.position - center; approach.y = 0.0
+		if approach.length() < 0.01: approach = Vector3.RIGHT
+		var reach := 1.42 if clicked in ["antenna", "water", "oxygen"] else (1.6 if clicked in ["habitat", "shelter", "greenhouse"] else 1.8)
+		move_target = center + approach.normalized() * (reach - 0.12)
+		move_target.y = PLAYER_Y
+		return
 	var origin: Vector3 = camera.project_ray_origin(point)
 	var direction: Vector3 = camera.project_ray_normal(point)
 	if absf(direction.y) < 0.001: return
@@ -233,7 +251,7 @@ func _click_to_walk(point: Vector2) -> void:
 	if travel < 0.0: return
 	var hit: Vector3 = origin + direction * travel
 	if Vector2(hit.x, hit.z).length() > 5.2: return
-	move_target = Vector3(hit.x, 0.42, hit.z)
+	move_target = Vector3(hit.x, PLAYER_Y, hit.z)
 
 func _update_nearby() -> void:
 	var best := 99.0
@@ -242,6 +260,9 @@ func _update_nearby() -> void:
 		var center: Vector3 = world.site_nodes[site].position
 		var distance := Vector2(world.astronaut.position.x - center.x, world.astronaut.position.z - center.z).length()
 		var reach := 1.85 if site == "solar" else (1.7 if site in ["habitat", "greenhouse", "shelter"] else 1.42)
+		if site == objective_site and distance < reach:
+			nearest = site
+			break
 		if distance < reach and distance < best:
 			best = distance; nearest = site
 	if nearest != nearby_site:
@@ -301,9 +322,10 @@ func _update_gauge() -> void:
 
 func _check_repair() -> void:
 	var pulse: float = gauge_needle.position.x / maxf(1.0, gauge.size.x - 5.0)
-	if absf(pulse - repair_target) <= 0.092:
+	if absf(pulse - repair_target) <= 0.12:
 		repair_hits += 1
 		sound.cue("action")
+		world.pulse(str(MissionConfig.ACTIONS[repair_action]["site"]))
 		repair_hint.text = "ESPAÇO no brilho azul  •  %d / 2" % repair_hits
 		repair_clock = 0.0
 		repair_target = 0.64 if repair_hits == 1 else 0.5
@@ -326,6 +348,7 @@ func _cancel_repair() -> void:
 	repair_action = ""
 	repair_panel.visible = false
 	prompt_panel.visible = true
+	world.select_site(objective_site)
 	_update_prompt()
 
 func _recommendation() -> String:
@@ -373,7 +396,7 @@ func _end_day() -> void:
 	sound.cue("failure" if model.ended and not model.won else ("warning" if model.day in [4, 6] else "click"))
 	if model.ended: _show_result()
 	else:
-		world.astronaut.position = Vector3(1.85, 0.42, 3.58)
+		world.astronaut.position = Vector3(1.85, PLAYER_Y, 3.58)
 		nearby_site = ""
 		var alerts := {2: "Painéis avariados", 3: "Alerta solar", 4: "Tempestade solar", 5: "Filtro de água danificado", 6: "Vazamento de oxigênio", 7: "Nave de resgate à vista"}
 		_toast("DIA %d  •  %s" % [model.day, alerts.get(model.day, "Continue")])
@@ -388,7 +411,7 @@ func _show_menu() -> void:
 	menu.visible = true; modal.visible = false; repair_action = ""; repair_panel.visible = false
 	prompt_panel.visible = true
 	for child in menu.get_children(): child.queue_free()
-	var box := _center_box(menu)
+	var box := _center_box(menu, 150)
 	_label(box, "L A S T   L I G H T", 30, WHITE)
 	_label(box, "Sete dias para manter a base viva.", 16, WARM)
 	_add_divider(box)
@@ -401,7 +424,7 @@ func _show_menu() -> void:
 
 func _new_game() -> void:
 	MissionSave.clear(); model = MissionModel.new()
-	world.astronaut.position = Vector3(1.85, 0.42, 3.58)
+	world.astronaut.position = Vector3(1.85, PLAYER_Y, 3.58)
 	move_target = Vector3.INF; nearby_site = ""
 	menu.visible = false; modal.visible = false
 	sound.cue("click"); _refresh(); MissionSave.save(model)
@@ -411,7 +434,7 @@ func _continue_game() -> void:
 	var loaded := MissionSave.load_game()
 	if loaded == null: return
 	model = loaded; menu.visible = false; modal.visible = false
-	world.astronaut.position = Vector3(1.85, 0.42, 3.58)
+	world.astronaut.position = Vector3(1.85, PLAYER_Y, 3.58)
 	move_target = Vector3.INF; nearby_site = ""
 	sound.cue("click"); _refresh()
 	if model.ended: _show_result()
@@ -419,9 +442,18 @@ func _continue_game() -> void:
 func _show_pause() -> void:
 	_show_modal("MISSÃO PAUSADA", "WASD / setas: mover     E: interagir     Espaço: calibrar", [
 		{"text": "CONTINUAR", "call": func(): modal.visible = false},
+		{"text": "ÁUDIO", "call": _show_settings},
 		{"text": "CIÊNCIA", "call": _show_science},
 		{"text": "MENU", "call": _show_menu}
 	])
+
+func _show_settings() -> void:
+	_show_modal("ÁUDIO", "Volume geral", [{"text": "VOLTAR", "call": _show_pause}])
+	var slider := HSlider.new(); slider.min_value = 0; slider.max_value = 1; slider.step = 0.01
+	slider.value = sound.volume; slider.custom_minimum_size.y = 48
+	modal_box.add_child(slider)
+	modal_box.move_child(slider, modal_box.get_child_count() - 2)
+	slider.value_changed.connect(sound.set_volume)
 
 func _show_result() -> void:
 	var title: String = "MISSÃO CONCLUÍDA" if model.won else "MISSÃO ENCERRADA"
@@ -470,8 +502,8 @@ func _column(parent: Control, margin_size: int = 16) -> VBoxContainer:
 	margin.add_child(column)
 	return column
 
-func _center_box(parent: Control) -> VBoxContainer:
-	var panel := _panel(parent, Vector2(-260, -210), Vector2(260, 210))
+func _center_box(parent: Control, half_height: int = 210) -> VBoxContainer:
+	var panel := _panel(parent, Vector2(-260, -half_height), Vector2(260, half_height))
 	panel.anchor_left = 0.5; panel.anchor_right = 0.5
 	panel.anchor_top = 0.5; panel.anchor_bottom = 0.5
 	return _column(panel, 24)
