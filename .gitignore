@@ -7,3 +7,5 @@
 build/
 *.log
 *.tmp
+test_capture.png
+test_capture.png.import

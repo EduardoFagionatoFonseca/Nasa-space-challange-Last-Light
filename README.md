@@ -4,7 +4,7 @@ Jogo de estratégia e sobrevivência lunar em desenvolvimento para Godot 4.7. Um
 
 ## Estado atual
 
-O núcleo da simulação está implementado e testado. A cena 3D e a interface estão em construção. Este marco ainda não é uma versão jogável.
+Protótipo jogável com campanha completa de sete dias, save automático, interface 3D e créditos de assets. A documentação e os pacotes de exportação estão em preparação.
 
 ## Teste da simulação
 
@@ -18,4 +18,4 @@ No ambiente de desenvolvimento, o Godot 4.7 foi encontrado em `C:\Users\eduar\Do
 
 ## Ciência e licença
 
-As unidades e custos do jogo são um modelo didático. Consulte `docs/SCIENCE.md` quando a interface estiver concluída. Os recursos visuais e sonoros serão originais ou terão licença documentada.
+As unidades e custos do jogo são um modelo didático. O cenário e o áudio procedural são originais. Modelos do Kenney Space Kit são CC0; veja `assets/kenney_space_kit/License.txt`.
