@@ -12,3 +12,4 @@ test_capture.png
 test_capture.png.import
 test_capture_*.png
 test_capture_*.png.import
+media/*.import

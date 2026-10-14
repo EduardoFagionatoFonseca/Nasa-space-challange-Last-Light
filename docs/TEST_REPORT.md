@@ -10,7 +10,7 @@ Ambiente local: Godot 4.7 estável, Windows, renderizador GL Compatibility, 1280
 - `assets_test.gd`: os sete modelos Kenney importam como meshes válidos e têm dimensões não nulas.
 - Captura visual local da cena principal em 1280 × 720: módulos, barras, botões, iluminação e textos aparecem no quadro.
 - Pacote PCK exportado pelo Godot 4.7 e iniciado com o executável Godot 4.7 para Windows. O processo encerrou normalmente tanto em modo gráfico quanto em modo sem janela.
-- O [workflow 38566577131](https://github.com/EduardoFagionatoFonseca/Nasa-space-challange-Last-Light/actions/runs/38566577131) concluiu com sucesso na versão mais recente: importação, quatro scripts de teste, exportação Windows e Web e envio de ambos os artefatos.
+- O [workflow 38605260089](https://github.com/EduardoFagionatoFonseca/Nasa-space-challange-Last-Light/actions/runs/38605260089) concluiu com sucesso na versão mais recente: importação, quatro scripts de teste, exportação Windows e Web e envio de ambos os artefatos.
 
 ## Limitações verificadas
 
