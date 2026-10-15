@@ -7,28 +7,38 @@ const WHITE := Color("e8edf1")
 const MUTED := Color("a2afbf")
 const PANEL := Color(0.045, 0.075, 0.12, 0.84)
 const PLAYER_Y := 0.17
-const SITE_ACTIONS := {"solar": "solar", "oxygen": "oxygen", "water": "water", "greenhouse": "food", "shelter": "shelter", "antenna": "rescue"}
-const SITE_NAMES := {"habitat": "habitat", "solar": "painéis solares", "oxygen": "módulo de oxigênio", "water": "reciclador de água", "greenhouse": "estufa", "shelter": "abrigo", "antenna": "antena", "landing": "plataforma de pouso"}
+const SITE_ACTIONS := {"solar": "solar", "oxygen": "oxygen", "water": "water", "greenhouse": "food", "shelter": "shelter", "antenna": "rescue", "landing": "landing"}
+const SITE_NAMES := {"habitat": "habitat", "solar": "painéis solares", "oxygen": "módulo de oxigênio", "water": "reciclador de água", "greenhouse": "estufa", "shelter": "abrigo", "antenna": "antena", "landing": "plataforma de pouso", "crater": "cratera recente"}
 const DAILY_ROUTE := {
-	1: ["rescue", "oxygen"], 2: ["solar", "rescue"], 3: ["shelter", "food"],
-	4: ["water", "rescue"], 5: ["water", "food"], 6: ["oxygen", "shelter"],
-	7: ["food", "oxygen"]
+	1: ["rescue", "oxygen"], 2: ["solar", "rescue"], 3: ["shelter"],
+	4: ["water", "rescue"], 5: ["water", "food"], 6: ["oxygen", "food"],
+	7: ["landing", "oxygen"]
 }
+const GOALS := {"antenna": "Restabeleça contato para o resgate", "oxygen": "Estabilize o suporte de oxigênio",
+	"solar": "Recupere a geração elétrica", "water": "Restabeleça o circuito de água",
+	"greenhouse": "Garanta reservas para a tripulação", "shelter": "Prepare proteção para a tempestade",
+	"crater": "Avalie o impacto recente", "landing": "Libere uma zona segura de pouso",
+	"habitat": "Monitore os sistemas e o traje"}
 
 var model: MissionModel
 var world: LunarDiorama
+var interior: LunarInterior
 var camera: Camera3D
 var sound: Soundscape
 var sun_light: DirectionalLight3D
+var fill_light: OmniLight3D
+var earth_mesh: MeshInstance3D
 var hud: Control
 var menu: ColorRect
 var modal: ColorRect
 var modal_box: VBoxContainer
 var day_label: Label
+var clock_label: Label
 var objective_label: Label
 var prompt_label: Label
 var hint_label: Label
 var rescue_label: Label
+var suit_label: Label
 var prompt_panel: PanelContainer
 var resource_bars: Dictionary = {}
 var resource_labels: Dictionary = {}
@@ -38,6 +48,8 @@ var repair_hint: Label
 var gauge: Control
 var gauge_target: ColorRect
 var gauge_needle: ColorRect
+var puzzle_choices: HBoxContainer
+var choice_buttons: Array[Button] = []
 var selected_site: String = ""
 var objective_site: String = "antenna"
 var nearby_site: String = ""
@@ -45,6 +57,13 @@ var repair_action: String = ""
 var repair_hits: int = 0
 var repair_clock: float = 0.0
 var repair_target: float = 0.5
+var repair_mistakes: int = 0
+var puzzle_kind: String = "timing"
+var suit_warned: bool = false
+var storm_warned: bool = false
+var storm_active_last: bool = false
+var live_hud_clock: float = 0.0
+var autosave_clock: float = 0.0
 var toast_clock: float = 0.0
 var move_target: Vector3 = Vector3.INF
 var walk_clock: float = 0.0
@@ -52,6 +71,7 @@ var walk_clock: float = 0.0
 func _ready() -> void:
 	_build_environment()
 	world = LunarDiorama.new(); add_child(world)
+	interior = LunarInterior.new(); add_child(interior)
 	sound = Soundscape.new(); add_child(sound)
 	model = MissionModel.new()
 	_build_ui()
@@ -59,13 +79,34 @@ func _ready() -> void:
 	_show_menu()
 
 func _process(delta: float) -> void:
-	if menu.visible or modal.visible or model.ended:
+	if menu.visible or modal.visible or model.ended: return
+	model.tick(delta)
+	if model.ended:
+		MissionSave.save(model); _show_result(); return
+	if not model.inside_base:
+		model.suit_oxygen = maxf(0.0, model.suit_oxygen - delta * 2.4)
+		if model.suit_oxygen <= 30.0 and not suit_warned:
+			suit_warned = true; sound.cue("warning"); _toast("O₂ do traje baixo • volte ao habitat")
+		if model.suit_oxygen <= 0.0:
+			model._fail("O oxigênio do traje acabou antes do retorno ao habitat.")
+			MissionSave.save(model); _show_result(); return
+	_update_storm(delta)
+	if model.ended:
+		MissionSave.save(model); _show_result(); return
+	if model.day_seconds_left <= 0.0:
+		if repair_action != "": _cancel_repair()
+		_end_day()
 		return
+	live_hud_clock += delta; autosave_clock += delta
+	if live_hud_clock >= 0.15:
+		live_hud_clock = 0.0; _refresh_live()
+	if autosave_clock >= 5.0:
+		autosave_clock = 0.0; MissionSave.save(model)
 	if repair_action != "":
 		repair_clock += delta
 		_update_gauge()
 		return
-	_move_player(delta)
+	if not model.inside_base: _move_player(delta)
 	_update_nearby()
 	if toast_clock > 0.0:
 		toast_clock -= delta
@@ -88,7 +129,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.keycode == KEY_SPACE and repair_action != "":
 			_check_repair()
 			get_viewport().set_input_as_handled()
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and repair_action == "":
+		elif event.keycode == KEY_F and model.inside_base:
+			_refill_suit()
+			get_viewport().set_input_as_handled()
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and repair_action == "" and not model.inside_base:
 		_click_to_walk(event.position)
 
 func _build_environment() -> void:
@@ -97,8 +141,8 @@ func _build_environment() -> void:
 	add_child(camera); camera.look_at(Vector3(0, 0, 0)); camera.current = true
 	sun_light = DirectionalLight3D.new(); sun_light.rotation_degrees = Vector3(-53, -32, 0)
 	sun_light.light_color = Color("f5dfc0"); sun_light.light_energy = 1.25; sun_light.shadow_enabled = true; add_child(sun_light)
-	var fill := OmniLight3D.new(); fill.position = Vector3(-5, 7, 4)
-	fill.light_color = CYAN; fill.light_energy = 0.55; fill.omni_range = 22; add_child(fill)
+	fill_light = OmniLight3D.new(); fill_light.position = Vector3(-5, 7, 4)
+	fill_light.light_color = CYAN; fill_light.light_energy = 0.55; fill_light.omni_range = 22; add_child(fill_light)
 	var env := WorldEnvironment.new(); env.environment = Environment.new()
 	env.environment.background_mode = Environment.BG_COLOR
 	env.environment.background_color = Color("09111e")
@@ -107,7 +151,8 @@ func _build_environment() -> void:
 	env.environment.ambient_light_energy = 0.42
 	env.environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	add_child(env)
-	var earth := MeshInstance3D.new(); var sphere := SphereMesh.new()
+	earth_mesh = MeshInstance3D.new(); var sphere := SphereMesh.new()
+	var earth := earth_mesh
 	sphere.radial_segments = 24; sphere.rings = 12; earth.mesh = sphere
 	earth.position = Vector3(-6.5, -1.1, -9.0); earth.scale = Vector3.ONE * 1.08
 	var shader := Shader.new()
@@ -142,9 +187,9 @@ func _build_ui() -> void:
 	var top_column := _column(top, 10)
 	var heading := HBoxContainer.new(); top_column.add_child(heading)
 	day_label = _label(heading, "DIA 1 / 7", 22, WARM)
-	var brand := _label(heading, "LAST LIGHT", 13, MUTED)
-	brand.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	brand.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	clock_label = _label(heading, "01:00", 20, CYAN)
+	clock_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	clock_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	objective_label = _label(top_column, "", 17, WHITE)
 	objective_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var vitals := _panel(hud, Vector2(-260, 18), Vector2(-22, 155), true)
@@ -160,10 +205,11 @@ func _build_ui() -> void:
 		row.add_child(bar); resource_bars[key] = bar
 		var value := _label(row, "", 12, MUTED); value.custom_minimum_size.x = 24
 		resource_labels[key] = value
-	var mission_status := _panel(hud, Vector2(22, -65), Vector2(270, -18))
+	var mission_status := _panel(hud, Vector2(22, -92), Vector2(270, -18))
 	mission_status.anchor_top = 1.0; mission_status.anchor_bottom = 1.0
 	var status_column := _column(mission_status, 5)
 	rescue_label = _label(status_column, "", 14, CYAN)
+	suit_label = _label(status_column, "", 14, WHITE)
 	prompt_panel = _panel(hud, Vector2(-320, -108), Vector2(320, -18))
 	prompt_panel.anchor_left = 0.5; prompt_panel.anchor_right = 0.5
 	prompt_panel.anchor_top = 1.0; prompt_panel.anchor_bottom = 1.0
@@ -188,6 +234,15 @@ func _build_ui() -> void:
 	gauge_target.position = Vector2(220, 7); gauge_target.size = Vector2(64, 18); gauge.add_child(gauge_target)
 	gauge_needle = ColorRect.new(); gauge_needle.color = WHITE
 	gauge_needle.position = Vector2(0, 3); gauge_needle.size = Vector2(5, 26); gauge.add_child(gauge_needle)
+	puzzle_choices = HBoxContainer.new(); puzzle_choices.add_theme_constant_override("separation", 7)
+	repair_column.add_child(puzzle_choices)
+	for index in range(3):
+		var choice := _button(puzzle_choices, "", true)
+		choice.custom_minimum_size = Vector2(145, 40)
+		choice.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		choice.pressed.connect(_on_choice.bind(index))
+		choice_buttons.append(choice)
+	puzzle_choices.visible = false
 	repair_panel.visible = false
 	menu = ColorRect.new(); menu.color = Color(0.015, 0.035, 0.065, 0.74)
 	menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); hud.add_child(menu)
@@ -232,6 +287,7 @@ func _click_to_walk(point: Vector2) -> void:
 	var distance := 54.0
 	for site in world.site_nodes:
 		var node: Node3D = world.site_nodes[site]
+		if not node.visible: continue
 		var screen_point: Vector2 = camera.unproject_position(node.global_position + Vector3(0, 1.0, 0))
 		var candidate: float = point.distance_to(screen_point)
 		if candidate < distance:
@@ -254,9 +310,14 @@ func _click_to_walk(point: Vector2) -> void:
 	move_target = Vector3(hit.x, PLAYER_Y, hit.z)
 
 func _update_nearby() -> void:
+	if model.inside_base:
+		nearby_site = "interior"
+		if toast_clock <= 0.0: _update_prompt()
+		return
 	var best := 99.0
 	var nearest := ""
 	for site in world.site_nodes:
+		if not world.site_nodes[site].visible: continue
 		var center: Vector3 = world.site_nodes[site].position
 		var distance := Vector2(world.astronaut.position.x - center.x, world.astronaut.position.z - center.z).length()
 		var reach := 1.85 if site == "solar" else (1.7 if site in ["habitat", "greenhouse", "shelter"] else 1.42)
@@ -271,48 +332,143 @@ func _update_nearby() -> void:
 
 func _update_prompt() -> void:
 	if repair_action != "": return
-	if nearby_site == "":
+	if model.inside_base:
+		prompt_label.text = "[F] Recarregar traje    [E] Sair"
+		hint_label.text = "O₂ do traje vem da reserva da base • abrigo contra radiação"
+	elif nearby_site == "":
 		prompt_label.text = "Siga o marcador luminoso"
 		hint_label.text = "WASD / setas para andar  •  clique para ir"
 	elif nearby_site == "habitat":
-		prompt_label.text = "[E] Encerrar o dia"
-		hint_label.text = "%d tarefa(s) restante(s)  •  ESC pausa" % model.actions_left
-	elif nearby_site == "landing" and model.day == 3 and model.science == 0:
-		prompt_label.text = "[E] Investigar sinal"
-		hint_label.text = "Pesquisa opcional"
+		prompt_label.text = "[E] Entrar no habitat"
+		hint_label.text = "Recarregue o traje ou procure abrigo"
+	elif nearby_site == "crater" and model.science == 0:
+		prompt_label.text = "[E] Inspecionar cratera"
+		hint_label.text = "Mapear detritos para uma aproximação segura"
 	elif SITE_ACTIONS.has(nearby_site):
 		var action: String = SITE_ACTIONS[nearby_site]
 		prompt_label.text = "[E] %s" % MissionConfig.ACTIONS[action]["title"]
-		hint_label.text = "Calibre o equipamento com ESPAÇO"
+		var costs: Array[String] = []
+		for key in MissionConfig.ACTIONS[action]["cost"]:
+			var names := {"energy": "energia", "oxygen": "O₂", "water": "água", "supplies": "suprimentos"}
+			costs.append("%s %d" % [names.get(key, key), MissionConfig.ACTIONS[action]["cost"][key]])
+		hint_label.text = "Custo " + "  •  ".join(costs) + "  •  5 erros bloqueiam"
 	else:
 		prompt_label.text = SITE_NAMES.get(nearby_site, "Base lunar").capitalize()
 		hint_label.text = "Siga o marcador luminoso"
 
 func _interact() -> void:
+	if model.inside_base:
+		_exit_habitat()
+		return
 	_update_nearby()
 	if nearby_site == "habitat":
-		if model.actions_left == 0: _end_day()
-		else: _confirm_end_day()
-	elif nearby_site == "landing" and model.day == 3 and model.science == 0:
+		_enter_habitat()
+	elif nearby_site == "crater" and model.science == 0:
 		if model.inspect_anomaly():
-			sound.cue("success"); MissionSave.save(model); _refresh(); _toast("Sinal pesquisado • dados enviados")
+			sound.cue("success"); MissionSave.save(model); _refresh(); _toast("Detritos mapeados • pouso pode ser preparado")
 	elif SITE_ACTIONS.has(nearby_site):
 		var action: String = SITE_ACTIONS[nearby_site]
 		if not model.can_do(action):
-			_toast("Sem recursos ou ações para este reparo")
+			_toast("Sem recursos, dados ou equipamento disponível")
 			sound.cue("warning")
 			return
 		_start_repair(action)
 
+func _enter_habitat() -> void:
+	model.inside_base = true
+	_apply_view()
+	move_target = Vector3.INF; nearby_site = "interior"
+	sound.cue("click"); MissionSave.save(model); _update_prompt()
+
+func _exit_habitat() -> void:
+	model.inside_base = false
+	_apply_view()
+	nearby_site = ""
+	sound.cue("click"); MissionSave.save(model); _update_nearby(); _update_prompt()
+
+func _apply_view() -> void:
+	world.visible = not model.inside_base
+	interior.visible = model.inside_base
+	sun_light.visible = not model.inside_base
+	fill_light.visible = not model.inside_base
+	earth_mesh.visible = not model.inside_base
+	if model.inside_base:
+		camera.position = Vector3(4.4, 4.2, 6.8); camera.size = 7.2
+		camera.look_at(Vector3(0, 0.7, 0))
+	else:
+		camera.position = Vector3(10.5, 13.0, 16.0); camera.size = 12.8
+		camera.look_at(Vector3.ZERO)
+
+func _refill_suit() -> void:
+	if model.refill_suit():
+		suit_warned = false
+		sound.cue("success"); MissionSave.save(model); _refresh_live()
+		_toast("Traje recarregado com O₂ da base")
+	else:
+		sound.cue("warning"); _toast("Reserva de O₂ insuficiente ou traje cheio")
+
+func _update_storm(delta: float) -> void:
+	if model.day != 4:
+		sun_light.light_color = Color("f5dfc0")
+		storm_active_last = false
+		return
+	if model.day_seconds_left <= 40.0 and not storm_warned:
+		storm_warned = true; sound.cue("warning")
+		_toast("ALERTA SOLAR • procure abrigo em 10 s")
+	var active: bool = model.day_seconds_left <= 30.0 and model.day_seconds_left > 14.0
+	sun_light.light_color = RED if active else Color("f5dfc0")
+	if active != storm_active_last:
+		storm_active_last = active
+		_refresh()
+	if active:
+		if not model.inside_base: model.radiation_exposure += delta
+		elif model.shelter < 60: model.radiation_exposure += delta * 0.5
+		if model.radiation_exposure >= 8.0:
+			model._fail("Exposição à radiação: a tripulação não alcançou abrigo protegido a tempo.")
+
 func _start_repair(action: String) -> void:
-	repair_action = action; repair_hits = 0; repair_clock = 0.0; repair_target = 0.5
+	repair_action = action; repair_hits = 0; repair_mistakes = 0
+	repair_clock = 0.0; repair_target = 0.5
+	puzzle_kind = "diagnostic" if action in ["oxygen", "shelter"] else ("sequence" if action in ["solar", "water", "food", "landing"] else "timing")
 	move_target = Vector3.INF
 	repair_panel.visible = true
 	prompt_panel.visible = false
 	repair_title.text = str(MissionConfig.ACTIONS[action]["title"]).to_upper()
-	repair_hint.text = "ESPAÇO no brilho azul  •  0 / 2"
+	gauge.visible = puzzle_kind == "timing"
+	puzzle_choices.visible = puzzle_kind != "timing"
+	if puzzle_kind == "timing": repair_hint.text = "ESPAÇO no brilho azul • 0 / 2 • erros 0 / 5"
+	elif puzzle_kind == "diagnostic":
+		var labels: Array = ["Linha A 96", "Linha B 61", "Linha C 95"] if action == "oxygen" else ["Selo A 98", "Selo B 97", "Selo C 43"]
+		for i in range(3): choice_buttons[i].text = labels[i]
+		repair_hint.text = "Isole o ponto com leitura anormal • erros 0 / 5"
+	else:
+		var labels: Array = {"solar": ["O₂", "HAB", "COM"], "water": ["Bomba", "Filtro", "Teste"],
+			"food": ["Água", "Nutrientes", "Luz"], "landing": ["Varrer", "Baliza", "Confirmar"]}[action]
+		for i in range(3): choice_buttons[i].text = labels[i]
+		repair_hint.text = _sequence_hint(action) + " • erros 0 / 5"
 	_update_gauge()
 	sound.cue("click")
+
+func _sequence_hint(action: String) -> String:
+	match action:
+		"solar": return "Priorize ar, habitat e comunicação"
+		"water": return "Faça circular, filtre e verifique"
+		"food": return "Irrigue, nutra e ilumine"
+		_: return "Verifique detritos, sinalize e confirme"
+
+func _on_choice(index: int) -> void:
+	if repair_action == "" or puzzle_kind == "timing": return
+	var correct: int = (1 if repair_action == "oxygen" else 2) if puzzle_kind == "diagnostic" else repair_hits
+	if index != correct:
+		_puzzle_error()
+		return
+	repair_hits += 1
+	sound.cue("action")
+	world.pulse(str(MissionConfig.ACTIONS[repair_action]["site"]))
+	if puzzle_kind == "diagnostic" or repair_hits >= 3:
+		_complete_repair()
+	else:
+		repair_hint.text = "%s • %d / 3 • erros %d / 5" % [_sequence_hint(repair_action), repair_hits, repair_mistakes]
 
 func _update_gauge() -> void:
 	var width: float = maxf(1.0, gauge.size.x - 5.0)
@@ -321,18 +477,32 @@ func _update_gauge() -> void:
 	gauge_target.position.x = repair_target * width - 32.0
 
 func _check_repair() -> void:
+	if repair_action == "" or puzzle_kind != "timing": return
 	var pulse: float = gauge_needle.position.x / maxf(1.0, gauge.size.x - 5.0)
 	if absf(pulse - repair_target) <= 0.12:
 		repair_hits += 1
 		sound.cue("action")
 		world.pulse(str(MissionConfig.ACTIONS[repair_action]["site"]))
-		repair_hint.text = "ESPAÇO no brilho azul  •  %d / 2" % repair_hits
+		repair_hint.text = "ESPAÇO no brilho azul • %d / 2 • erros %d / 5" % [repair_hits, repair_mistakes]
 		repair_clock = 0.0
 		repair_target = 0.64 if repair_hits == 1 else 0.5
 		if repair_hits >= 2: _complete_repair()
 	else:
-		sound.cue("warning")
-		repair_hint.text = "Fora do pulso • tente de novo"
+		_puzzle_error()
+
+func _puzzle_error() -> void:
+	repair_mistakes += 1
+	sound.cue("warning")
+	if puzzle_kind == "sequence": repair_hits = 0
+	if repair_mistakes >= 5:
+		var action := repair_action
+		_cancel_repair()
+		model.record_repair_failure(action)
+		MissionSave.save(model); _refresh()
+		if model.ended: _show_result()
+		else: _toast("Reparo perdido • equipamento bloqueado hoje")
+	else:
+		repair_hint.text = "Leitura incorreta • erros %d / 5" % repair_mistakes
 
 func _complete_repair() -> void:
 	var action := repair_action
@@ -352,11 +522,12 @@ func _cancel_repair() -> void:
 	_update_prompt()
 
 func _recommendation() -> String:
-	if model.actions_left <= 0: return "habitat"
+	if model.day == 4 and model.day_seconds_left <= 30.0 and model.day_seconds_left > 14.0: return "habitat"
+	if model.day >= 3 and model.science == 0: return "crater"
+	if int(model.resources["energy"]) < 16 and model.can_do("solar"): return "solar"
+	if int(model.resources["oxygen"]) < 18 and model.can_do("oxygen"): return "oxygen"
 	for action in DAILY_ROUTE[model.day]:
 		if not _did_today(action) and model.can_do(action): return str(MissionConfig.ACTIONS[action]["site"])
-	for action in MissionConfig.ACTION_ORDER:
-		if model.can_do(action): return str(MissionConfig.ACTIONS[action]["site"])
 	return "habitat"
 
 func _did_today(action: String) -> bool:
@@ -365,25 +536,27 @@ func _did_today(action: String) -> bool:
 
 func _refresh() -> void:
 	world.set_model(model)
-	sun_light.light_color = Color("fa9e82") if model.day == 4 else Color("f5dfc0")
 	day_label.text = "DIA %d / 7" % model.day
 	objective_site = _recommendation()
 	world.select_site(objective_site)
 	selected_site = objective_site
-	if objective_site == "habitat":
-		objective_label.text = "Volte ao habitat e encerre o dia"
-	else:
-		var action: String = SITE_ACTIONS[objective_site]
-		objective_label.text = "%s  →  %s" % [str(MissionConfig.ACTIONS[action]["title"]), SITE_NAMES[objective_site]]
-	rescue_label.text = "RESGATE %d / 3     •     %d / 2 reparos" % [model.rescue, 2 - model.actions_left]
+	objective_label.text = "Procure abrigo contra a radiação" if model.day == 4 and objective_site == "habitat" else GOALS[objective_site]
+	rescue_label.text = "RESGATE %d/3  •  POUSO %s" % [model.rescue, "OK" if model.landing_prepared else "PENDENTE"]
+	_refresh_live()
+	_update_nearby()
+	_update_prompt()
+
+func _refresh_live() -> void:
+	clock_label.text = "%02d:%02d" % [int(ceilf(model.day_seconds_left)) / 60, int(ceilf(model.day_seconds_left)) % 60]
+	clock_label.add_theme_color_override("font_color", RED if model.day_seconds_left <= 15.0 else CYAN)
+	suit_label.text = "TRAJE O₂ %d%%" % int(ceilf(model.suit_oxygen))
+	suit_label.add_theme_color_override("font_color", RED if model.suit_oxygen <= 30.0 else WHITE)
 	for key in resource_bars:
 		var value: int = model.resources[key]
 		resource_bars[key].value = value
 		resource_bars[key].add_theme_stylebox_override("fill", _style(RED if value <= 18 else (WARM if value <= 35 else CYAN), 5))
 		resource_labels[key].text = str(value)
 		resource_bars[key].tooltip_text = "%s %d / 100" % [key, value]
-	_update_nearby()
-	_update_prompt()
 
 func _toast(message: String) -> void:
 	toast_clock = 2.3
@@ -393,19 +566,12 @@ func _toast(message: String) -> void:
 func _end_day() -> void:
 	modal.visible = false
 	model.end_day(); MissionSave.save(model); _refresh()
+	storm_warned = false
 	sound.cue("failure" if model.ended and not model.won else ("warning" if model.day in [4, 6] else "click"))
 	if model.ended: _show_result()
 	else:
-		world.astronaut.position = Vector3(1.85, PLAYER_Y, 3.58)
-		nearby_site = ""
-		var alerts := {2: "Painéis avariados", 3: "Alerta solar", 4: "Tempestade solar", 5: "Filtro de água danificado", 6: "Vazamento de oxigênio", 7: "Nave de resgate à vista"}
+		var alerts := {2: "Painéis avariados", 3: "Impacto próximo à base", 4: "Radiação prevista", 5: "Filtro de água danificado", 6: "Vazamento de oxigênio", 7: "Nave de resgate à vista"}
 		_toast("DIA %d  •  %s" % [model.day, alerts.get(model.day, "Continue")])
-
-func _confirm_end_day() -> void:
-	_show_modal("ENCERRAR DIA?", "Ainda há %d reparo(s) disponível(is)." % model.actions_left, [
-		{"text": "CONTINUAR", "call": func(): modal.visible = false},
-		{"text": "ENCERRAR", "call": _end_day}
-	])
 
 func _show_menu() -> void:
 	menu.visible = true; modal.visible = false; repair_action = ""; repair_panel.visible = false
@@ -425,22 +591,24 @@ func _show_menu() -> void:
 func _new_game() -> void:
 	MissionSave.clear(); model = MissionModel.new()
 	world.astronaut.position = Vector3(1.85, PLAYER_Y, 3.58)
+	_apply_view(); suit_warned = false; storm_warned = false; storm_active_last = false; autosave_clock = 0.0
 	move_target = Vector3.INF; nearby_site = ""
 	menu.visible = false; modal.visible = false
 	sound.cue("click"); _refresh(); MissionSave.save(model)
-	_toast("WASD para andar  •  E para interagir")
+	_toast("60 s por dia • E interage • F recarrega no habitat")
 
 func _continue_game() -> void:
 	var loaded := MissionSave.load_game()
 	if loaded == null: return
 	model = loaded; menu.visible = false; modal.visible = false
 	world.astronaut.position = Vector3(1.85, PLAYER_Y, 3.58)
+	_apply_view(); suit_warned = model.suit_oxygen <= 30.0; storm_warned = false
 	move_target = Vector3.INF; nearby_site = ""
 	sound.cue("click"); _refresh()
 	if model.ended: _show_result()
 
 func _show_pause() -> void:
-	_show_modal("MISSÃO PAUSADA", "WASD / setas: mover     E: interagir     Espaço: calibrar", [
+	_show_modal("MISSÃO PAUSADA", "WASD/setas: mover  •  E: interagir  •  F: recarregar traje  •  Espaço: calibrar", [
 		{"text": "CONTINUAR", "call": func(): modal.visible = false},
 		{"text": "ÁUDIO", "call": _show_settings},
 		{"text": "CIÊNCIA", "call": _show_science},

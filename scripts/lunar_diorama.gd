@@ -56,6 +56,7 @@ func set_model(value: MissionModel) -> void:
 	alerts["oxygen"].visible = model.leak
 	alerts["antenna"].visible = not model.comms_ok
 	alerts["shelter"].visible = model.day == 4 and model.shelter < 60
+	site_nodes["crater"].visible = model.day >= 3
 
 func select_site(site: String) -> void:
 	active_site = site
@@ -113,6 +114,7 @@ func _build() -> void:
 	_solar_array(Vector3(-3.2, 0.1, -2.55))
 	_antenna(Vector3(3.3, 0.12, 2.25))
 	_landing_pad(Vector3(3.15, 0.05, -3.6))
+	_impact_crater(Vector3(-3.85, 0.08, 2.8))
 	_astronaut()
 	_import_mesh(self, "rover", Vector3(-2.0, 0.09, 3.5), Vector3.ONE * 1.65)
 	_import_mesh(self, "machine_generator", Vector3(-3.15, 0.17, 0.4), Vector3.ONE * 1.1)
@@ -185,6 +187,19 @@ func _landing_pad(pos: Vector3) -> void:
 	_add_mesh(root, BoxMesh.new(), Vector3(0, 0.05, 0), Vector3(0.6, 0.015, 0.07), _mat(Color("e9eef1")))
 	_add_mesh(root, BoxMesh.new(), Vector3(0, 0.05, 0), Vector3(0.07, 0.015, 0.6), _mat(Color("e9eef1")))
 	_register("landing", root, 1.2)
+
+func _impact_crater(pos: Vector3) -> void:
+	var root := Node3D.new(); root.name = "ImpactCrater"; root.position = pos; add_child(root)
+	var hollow := CylinderMesh.new(); hollow.top_radius = 0.62; hollow.bottom_radius = 0.56
+	hollow.height = 0.035; hollow.radial_segments = 18
+	_add_mesh(root, hollow, Vector3.ZERO, Vector3.ONE, _mat(Color("202a39")))
+	for i in range(14):
+		var angle: float = TAU * float(i) / 14.0
+		var rock := SphereMesh.new(); rock.radial_segments = 6; rock.rings = 4
+		_add_mesh(root, rock, Vector3(cos(angle) * 0.65, 0.09, sin(angle) * 0.65), Vector3(0.18, 0.12, 0.14), _mat(Color("a1a9b3")))
+	_add_light(root, Vector3(0, 0.55, 0), WARM, 0.8, 1.6)
+	_register("crater", root, 0.47)
+	root.visible = false
 
 func _astronaut() -> void:
 	astronaut = Node3D.new(); astronaut.name = "Astronaut"; add_child(astronaut)

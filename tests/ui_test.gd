@@ -1,102 +1,105 @@
 extends SceneTree
 
+var failures: Array[String] = []
+
 func _initialize() -> void:
 	call_deferred("_run")
 
 func _run() -> void:
-	var scene: PackedScene = load("res://scenes/main.tscn")
-	var game: Node3D = scene.instantiate()
+	var game: Node3D = load("res://scenes/main.tscn").instantiate()
 	root.add_child(game)
 	game._new_game()
 	await process_frame
-	_assert(game.model.day == 1 and not game.menu.visible, "mission starts")
-	_assert(game.hud.mouse_filter == Control.MOUSE_FILTER_IGNORE, "world input passes through HUD")
-	_assert(game.objective_site == "antenna", "first objective points to rescue")
-	var antenna_point: Vector2 = game.camera.unproject_position(game.world.site_nodes["antenna"].global_position + Vector3(0, 1.0, 0))
-	game._click_to_walk(antenna_point)
+	_check(game.objective_site == "antenna" and game.clock_label.text == "01:00", "broad objective and countdown")
+	var point: Vector2 = game.camera.unproject_position(game.world.site_nodes["antenna"].global_position + Vector3(0, 1.0, 0))
+	game._click_to_walk(point)
 	for i in range(180): game._move_player(1.0 / 60.0)
 	game._update_nearby()
-	_assert(game.nearby_site == "antenna", "clicking a module walks into interaction range")
+	_check(game.nearby_site == "antenna", "click walks to module")
 	game.world.astronaut.position = Vector3(1.1, 0.17, 1.1)
-	game._update_nearby()
-	_assert(game.nearby_site == "habitat", "habitat reached physically")
-	game._click_to_walk(Vector2(800, 430))
-	_assert(game.move_target != Vector3.INF, "click sets walking destination")
-	game.move_target = Vector3(2.3, 0.17, 1.5)
-	var before: Vector3 = game.world.astronaut.position
-	game._move_player(0.12)
-	_assert(game.world.astronaut.position.distance_to(before) > 0.05, "astronaut walks toward destination")
-	game.move_target = Vector3.INF
-	game.world.astronaut.position = Vector3(1.85, 0.17, 3.58)
-	game._update_nearby()
-	game._interact()
-	_assert(game.repair_action == "", "cannot repair without reaching module")
-	_repair(game, "rescue")
-	_assert(game.model.rescue == 1 and game.model.actions_left == 1, "repair calibration commits one action")
-	_assert(game.objective_site == "oxygen", "route advances after repair")
-	_repair(game, "oxygen")
-	_end_day(game)
-	_assert(game.model.day == 2 and MissionSave.exists(), "day and save advance")
-	_repair(game, "solar")
-	_repair(game, "rescue")
-	_end_day(game)
-	_repair(game, "shelter")
-	_repair(game, "food")
-	_end_day(game)
-	_repair(game, "water")
-	_repair(game, "rescue")
-	_end_day(game)
-	_repair(game, "water")
-	_repair(game, "food")
-	_end_day(game)
-	_repair(game, "oxygen")
-	_repair(game, "shelter")
-	_end_day(game)
-	_repair(game, "food")
-	_repair(game, "oxygen")
-	_end_day(game)
-	_assert(game.model.won, "guided seven day route wins")
+	game._update_nearby(); game._interact()
+	_check(game.model.inside_base and game.interior.visible and not game.world.visible, "habitat has visible interior")
+	game.model.suit_oxygen = 55.0
+	var reserve: int = game.model.resources["oxygen"]
+	game._refill_suit()
+	_check(game.model.suit_oxygen == 100.0 and int(game.model.resources["oxygen"]) < reserve, "refill uses base reserve")
+	game._exit_habitat()
+	_check(not game.model.inside_base and game.world.visible, "can leave habitat")
+	_repair(game, "rescue"); _repair(game, "oxygen")
+	game.world.astronaut.position = Vector3(1.1, 0.17, 1.1)
+	game._update_nearby(); game._interact()
+	game._process(60.0)
+	_check(game.model.day == 2, "clock advances day automatically")
+	game._exit_habitat()
+	_repair(game, "solar"); _repair(game, "rescue"); _next(game)
+	_check(game.model.day == 3 and game.world.site_nodes["crater"].visible, "new crater appears")
+	var crater: Vector3 = game.world.site_nodes["crater"].position
+	game.world.astronaut.position = crater + Vector3(0.8, 0.09, 0)
+	game._update_nearby(); game._interact()
+	_check(game.model.science == 1, "crater investigation records data")
+	_repair(game, "shelter"); _next(game)
+	_repair(game, "water"); _repair(game, "rescue"); _next(game)
+	_repair(game, "water"); _repair(game, "food"); _next(game)
+	_repair(game, "oxygen"); _repair(game, "food"); _next(game)
+	_repair(game, "landing"); _repair(game, "oxygen"); _next(game)
+	_check(game.model.won and game.model.landing_prepared, "guided campaign wins with landing zone")
 	var restored: MissionModel = MissionSave.load_game()
-	_assert(restored != null and restored.won and restored.score() == game.model.score(), "victory restored")
+	_check(restored != null and restored.won and restored.landing_prepared, "new mission state saved")
+	game._new_game()
+	_goto(game, "antenna")
+	game._interact()
+	for i in range(5):
+		game.gauge_needle.position.x = 0.0
+		game._check_repair()
+	_check(game.repair_action == "" and not game.model.can_do("rescue") and game.model.resources["energy"] == 62, "five misses penalize and lock repair")
+	game.model.day = 4; game.model.shelter = 76; game.model.day_seconds_left = 29.0
+	game._update_storm(8.1)
+	_check(game.model.ended and game.model.outcome.contains("radiação"), "radiation outside shelter is fatal")
+	game._new_game()
+	game.model.suit_oxygen = 0.5
+	game._process(0.5)
+	_check(game.model.ended and game.model.outcome.contains("traje"), "suit oxygen is a real danger")
 	MissionSave.clear()
-	print("UI TEST PASSED")
 	game.queue_free()
-	await create_timer(0.35).timeout
-	quit(0)
+	await create_timer(0.3).timeout
+	if failures.is_empty():
+		print("UI TEST PASSED")
+		quit(0)
+	else:
+		for failure in failures: push_error(failure)
+		quit(1)
 
-func _repair(game: Node3D, action: String) -> void:
-	var site: String = MissionConfig.ACTIONS[action]["site"]
+func _goto(game: Node3D, site: String) -> void:
 	var center: Vector3 = game.world.site_nodes[site].position
-	var offset := Vector3(1.3, 0.25, 0)
-	if site == "solar": offset = Vector3(1.5, 0.32, 0)
-	if site == "oxygen": offset = Vector3(-1.3, 0.25, 0)
-	if site == "greenhouse": offset = Vector3(0, 0.25, -1.5)
-	if site == "shelter": offset = Vector3(-1.3, 0.25, 0)
+	var offset := Vector3(1.3, 0, 0)
+	if site == "solar": offset = Vector3(1.5, 0, 0)
+	if site == "oxygen": offset = Vector3(-1.3, 0, 0)
+	if site == "greenhouse": offset = Vector3(0, 0, -1.5)
+	if site == "shelter": offset = Vector3(-1.3, 0, 0)
+	if site == "landing": offset = Vector3(0, 0, 1.35)
 	game.world.astronaut.position = center + offset
 	game.world.astronaut.position.y = 0.17
 	game._update_nearby()
-	_assert(game.nearby_site == site, "%s approached" % site)
-	game._interact()
-	_assert(game.repair_action == action, "%s starts calibration" % action)
-	if action == "rescue" and game.model.day == 1:
-		var actions_before: int = game.model.actions_left
-		game.gauge_needle.position.x = 0.0
-		game._check_repair()
-		_assert(game.repair_hits == 0 and game.model.actions_left == actions_before, "missed pulse does not spend action")
-	for step in range(2):
-		game.gauge_needle.position.x = game.repair_target * maxf(1.0, game.gauge.size.x - 5.0)
-		game._check_repair()
-	_assert(game.repair_action == "", "%s calibration completes" % action)
+	_check(game.nearby_site == site, "%s reached" % site)
 
-func _end_day(game: Node3D) -> void:
-	_assert(game.model.actions_left == 0, "two repairs complete")
-	game.world.astronaut.position = Vector3(1.1, 0.17, 1.1)
-	game._update_nearby()
-	_assert(game.nearby_site == "habitat", "return to habitat")
+func _repair(game: Node3D, action: String) -> void:
+	_goto(game, str(MissionConfig.ACTIONS[action]["site"]))
 	game._interact()
-	game.modal.visible = false
+	_check(game.repair_action == action, "%s starts" % action)
+	if game.repair_action != action: return
+	match game.puzzle_kind:
+		"timing":
+			for i in range(2):
+				game.gauge_needle.position.x = game.repair_target * maxf(1.0, game.gauge.size.x - 5.0)
+				game._check_repair()
+		"diagnostic": game._on_choice(1 if action == "oxygen" else 2)
+		"sequence":
+			for i in range(3): game._on_choice(i)
+	_check(game.repair_action == "", "%s completes" % action)
 
-func _assert(value: bool, label: String) -> void:
-	if not value:
-		push_error(label)
-		quit(1)
+func _next(game: Node3D) -> void:
+	game.model.tick(60.0)
+	game._end_day()
+
+func _check(value: bool, label: String) -> void:
+	if not value: failures.append(label)

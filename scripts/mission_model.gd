@@ -5,7 +5,14 @@ signal changed
 signal finished
 
 var day: int = 1
-var actions_left: int = 2
+var actions_left: int = 99
+var day_seconds_left: float = 60.0
+var suit_oxygen: float = 100.0
+var inside_base: bool = false
+var radiation_exposure: float = 0.0
+var landing_prepared: bool = false
+var locked_actions: Dictionary = {}
+var resource_remainders: Dictionary = {"energy": 0.0, "oxygen": 0.0, "water": 0.0, "supplies": 0.0}
 var resources: Dictionary = MissionConfig.START.duplicate(true)
 var shelter: int = 48
 var rescue: int = 0
@@ -31,6 +38,10 @@ func can_do(action: String) -> bool:
 		if int(resources[key]) < int(costs[key]):
 			return false
 	if action == "rescue" and rescue >= 3:
+		return false
+	if action == "landing" and (landing_prepared or science == 0):
+		return false
+	if locked_actions.get(action, 0) == day:
 		return false
 	if action == "solar" and panels_ok and int(resources["energy"]) >= 90:
 		return false
@@ -60,6 +71,7 @@ func do_action(action: String) -> bool:
 				comms_ok = true
 				log.append("Antena reconfigurada; contato com a nave restaurado.")
 			rescue += 1
+		"landing": landing_prepared = true
 	actions_left -= 1
 	var text_line: String = "DIA %d • %s." % [day, entry["title"]]
 	log.append(text_line)
@@ -68,27 +80,60 @@ func do_action(action: String) -> bool:
 	return true
 
 func inspect_anomaly() -> bool:
-	if day != 3 or actions_left <= 0 or int(resources["energy"]) < 4 or ended or science > 0:
+	if day < 3 or int(resources["energy"]) < 4 or ended or science > 0:
 		return false
 	resources["energy"] = int(resources["energy"]) - 4
-	actions_left -= 1
 	science = 1
-	log.append("DIA 3 • O sinal desconhecido era reflexão de rádio no relevo. Dados científicos registrados.")
-	history.append("Anomalia investigada sem atribuir origem extraterrestre.")
+	log.append("DIA %d • Cratera recente inspecionada. Ejetos mapeados para uma aproximação segura." % day)
+	history.append("Cratera inspecionada; zona de pouso pode ser preparada.")
 	changed.emit()
 	return true
+
+func record_repair_failure(action: String) -> void:
+	if ended: return
+	locked_actions[action] = day
+	resources["energy"] = maxi(0, int(resources["energy"]) - 8)
+	resources["supplies"] = maxi(0, int(resources["supplies"]) - 4)
+	log.append("DIA %d • Falha em %s: circuito bloqueado até o próximo turno." % [day, action])
+	if int(resources["energy"]) <= 0 or int(resources["supplies"]) <= 0:
+		_fail("Falha de reparo esgotou energia ou peças essenciais.")
+	else:
+		changed.emit()
+
+func refill_suit() -> bool:
+	if ended or not inside_base or suit_oxygen >= 99.0: return false
+	var needed: float = 100.0 - suit_oxygen
+	var cost: int = maxi(1, ceili(needed / 15.0))
+	if int(resources["oxygen"]) <= cost + 5: return false
+	resources["oxygen"] = int(resources["oxygen"]) - cost
+	suit_oxygen = 100.0
+	log.append("DIA %d • Traje recarregado com %d unidades da reserva da base." % [day, cost])
+	changed.emit()
+	return true
+
+func tick(delta: float) -> void:
+	if ended or delta <= 0.0: return
+	day_seconds_left = maxf(0.0, day_seconds_left - delta)
+	var gain: float = 14.0 if panels_ok else 5.0
+	if day == 4: gain = 3.0 if panels_ok else 1.0
+	var rates := {"energy": (gain - 10.0) / 60.0,
+		"oxygen": (-9.0 - (6.0 if leak else 0.0)) / 60.0,
+		"water": (-8.0 + (5.0 if recycler_ok else 2.0)) / 60.0,
+		"supplies": -7.0 / 60.0}
+	for key in rates:
+		var accumulated: float = float(resource_remainders[key]) + float(rates[key]) * delta
+		var whole: int = int(accumulated)
+		resource_remainders[key] = accumulated - float(whole)
+		if whole != 0:
+			resources[key] = clampi(int(resources[key]) + whole, 0, 100)
+			if int(resources[key]) <= 0:
+				_fail("A reserva de %s foi esgotada durante a operação." % _resource_name(key))
+				return
 
 func end_day() -> void:
 	if ended:
 		return
-	var solar_gain: int = 14 if panels_ok else 5
-	if day == 4:
-		solar_gain = 3 if panels_ok else 1
-	resources["energy"] = mini(100, int(resources["energy"]) + solar_gain - 10)
-	resources["oxygen"] = int(resources["oxygen"]) - 9 - (6 if leak else 0)
-	resources["water"] = int(resources["water"]) - 8 + (5 if recycler_ok else 2)
-	resources["supplies"] = int(resources["supplies"]) - 7
-	log.append("DIA %d • Balanço: solar +%d, base −10 energia; tripulação −9 O₂, −8 água, −7 suprimentos." % [day, solar_gain])
+	log.append("DIA %d • Reservas ao fim da janela: E %d, O₂ %d, água %d, peças %d." % [day, resources["energy"], resources["oxygen"], resources["water"], resources["supplies"]])
 	if day == 4:
 		if shelter < 60:
 			_fail("O abrigo não resistiu à tempestade solar. A missão foi interrompida.")
@@ -102,6 +147,8 @@ func end_day() -> void:
 	if day == 7:
 		if rescue < 3:
 			_fail("A nave chegou, mas os três procedimentos de resgate não foram concluídos.")
+		elif not landing_prepared:
+			_fail("A nave não recebeu uma zona de pouso preparada.")
 		elif shelter < 20:
 			_fail("A estação ficou instável demais para um resgate seguro.")
 		else:
@@ -113,7 +160,10 @@ func end_day() -> void:
 			finished.emit()
 		return
 	day += 1
-	actions_left = 2
+	actions_left = 99
+	day_seconds_left = 60.0
+	locked_actions.clear()
+	radiation_exposure = 0.0
 	_apply_day_event()
 	changed.emit()
 
@@ -123,7 +173,7 @@ func _apply_day_event() -> void:
 			panels_ok = false
 			log.append("DIA 2 • Falha solar: produção cai de +14 para +5 por dia.")
 		3:
-			log.append("DIA 3 • Alerta solar para o dia 4. A anomalia de rádio pode ser investigada.")
+			log.append("DIA 3 • Impacto de micrometeoroide registrado. Inspecione a nova cratera antes de preparar o pouso.")
 		4:
 			log.append("DIA 4 • Tempestade solar em curso. Integridade 60 exigida ao fim do dia.")
 		5:
@@ -159,7 +209,11 @@ func score() -> int:
 	return value
 
 func to_data() -> Dictionary:
-	return {"day": day, "actions_left": actions_left, "resources": resources.duplicate(true), "shelter": shelter,
+	return {"day": day, "actions_left": actions_left, "day_seconds_left": day_seconds_left,
+		"suit_oxygen": suit_oxygen, "inside_base": inside_base,
+		"radiation_exposure": radiation_exposure, "landing_prepared": landing_prepared,
+		"locked_actions": locked_actions.duplicate(true), "resource_remainders": resource_remainders.duplicate(true),
+		"resources": resources.duplicate(true), "shelter": shelter,
 		"rescue": rescue, "panels_ok": panels_ok, "recycler_ok": recycler_ok, "leak": leak,
 		"comms_ok": comms_ok, "science": science, "ended": ended, "won": won,
 		"outcome": outcome, "log": log.duplicate(), "history": history.duplicate()}
@@ -167,7 +221,16 @@ func to_data() -> Dictionary:
 static func from_data(data: Dictionary) -> MissionModel:
 	var m := MissionModel.new()
 	m.day = clampi(int(data.get("day", 1)), 1, 7)
-	m.actions_left = clampi(int(data.get("actions_left", 2)), 0, 2)
+	m.actions_left = 99
+	m.day_seconds_left = clampf(float(data.get("day_seconds_left", 60.0)), 0.0, 60.0)
+	m.suit_oxygen = clampf(float(data.get("suit_oxygen", 100.0)), 0.0, 100.0)
+	m.inside_base = bool(data.get("inside_base", false))
+	m.radiation_exposure = clampf(float(data.get("radiation_exposure", 0.0)), 0.0, 10.0)
+	m.landing_prepared = bool(data.get("landing_prepared", false))
+	m.locked_actions = data.get("locked_actions", {}).duplicate(true)
+	var remainders: Dictionary = data.get("resource_remainders", {})
+	for key in m.resource_remainders:
+		m.resource_remainders[key] = clampf(float(remainders.get(key, 0.0)), -1.0, 1.0)
 	var loaded: Dictionary = data.get("resources", {})
 	for key in MissionConfig.START:
 		m.resources[key] = clampi(int(loaded.get(key, MissionConfig.START[key])), 0, 100)

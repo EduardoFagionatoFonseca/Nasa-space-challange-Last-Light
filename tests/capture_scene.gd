@@ -18,6 +18,20 @@ func _capture() -> void:
 		game.world.astronaut.position.y = 0.17
 		game._update_nearby()
 		game._interact()
+	if view == "interior": game._enter_habitat()
+	if view == "crater":
+		game.model.day = 3
+		game._refresh()
+	if view == "storm":
+		game.model.day = 4; game.model.shelter = 76
+		game.model.day_seconds_left = 24.0
+		game._refresh(); game._update_storm(0.0)
+	if view == "sequence":
+		game.model.day = 2; game.model.panels_ok = false
+		game._refresh()
+		game.world.astronaut.position = game.world.site_nodes["solar"].position + Vector3(1.5, 0.0, 0)
+		game.world.astronaut.position.y = 0.17
+		game._update_nearby(); game._interact()
 	if view == "science": game._show_science()
 	if view == "credits": game._show_credits()
 	await RenderingServer.frame_post_draw

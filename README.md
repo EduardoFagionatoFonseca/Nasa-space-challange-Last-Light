@@ -1,6 +1,6 @@
 # LAST LIGHT
 
-Jogo curto de exploração e sobrevivência lunar para Godot 4.7. Caminhe pela base, repare seus sistemas e prepare três etapas de resgate antes do fim do sétimo dia. Todo o texto do jogo está em português.
+Jogo curto de exploração e sobrevivência lunar para Godot 4.7. Caminhe pela base, mantenha os sistemas vitais e prepare o resgate antes do fim do sétimo dia. Cada dia dura 60 segundos. Todo o texto do jogo está em português.
 
 ![Astronauta explorando a base lunar de LAST LIGHT](media/gameplay.png)
 
@@ -8,23 +8,27 @@ Jogo curto de exploração e sobrevivência lunar para Godot 4.7. Caminhe pela b
 
 1. Instale o [Godot 4.7](https://godotengine.org/download/windows/) ou use a versão executável, se incluída na entrega.
 2. Abra esta pasta como projeto no Godot e execute com **F5**.
-3. Clique em **Iniciar missão**. Siga o marcador luminoso até o módulo indicado no objetivo.
+3. Clique em **Iniciar missão**. Leia o objetivo geral e procure os módulos pelo marcador luminoso.
 4. Use **WASD** ou as **setas** para andar. Também é possível clicar no cenário ou em um módulo para caminhar até ele.
-5. Perto de um módulo, pressione **E** para iniciar o reparo. Pressione **Espaço** quando o ponteiro cruzar a faixa azul duas vezes. Um erro permite tentar novamente sem gastar a ação.
-6. Depois dos reparos, volte ao habitat e pressione **E** para encerrar o dia. **Esc** pausa ou cancela a calibração.
+5. Perto de um módulo, pressione **E** para iniciar o reparo. Os desafios incluem calibrar com **Espaço**, escolher uma sequência e diagnosticar uma falha. Cinco erros bloqueiam aquele reparo até o dia seguinte e gastam recursos.
+6. Volte ao habitat quando o O₂ do traje baixar: **E** entra ou sai, **F** recarrega o traje usando a reserva da base. Durante o alerta solar, procure abrigo imediatamente. **Esc** pausa ou cancela um reparo.
 
 ![Calibração de um reparo na antena](media/repair.png)
+
+![Interior do habitat e estação de recarga do traje](media/interior.png)
+
+![Sequência de reparo dos painéis](media/sequence.png)
 
 O jogo salva automaticamente após cada reparo e a cada mudança de dia. A opção **Continuar** retoma a campanha.
 
 ## Regras rápidas
 
-- Energia, oxigênio, água e suprimentos precisam ficar acima de zero.
-- O abrigo precisa de integridade **60 ou mais** ao terminar o dia 4.
-- Conclua as **três etapas do resgate** antes de terminar o dia 7.
+- Energia, oxigênio da base, água e suprimentos precisam ficar acima de zero. O O₂ do traje também pode acabar durante a exploração.
+- O abrigo precisa de integridade **60 ou mais** no dia 4; a tempestade pode encerrar a missão por exposição.
+- Conclua as **três etapas de contato** e prepare a zona de pouso antes de terminar o dia 7.
 - O marcador e a frase no canto superior esquerdo mostram o próximo reparo sugerido. Você também pode escolher outro módulo.
 - Luzes vermelhas sinalizam avarias; os quatro indicadores compactos mostram os recursos vitais.
-- A anomalia do dia 3 é uma investigação científica opcional que aumenta a pontuação.
+- Investigue a cratera que aparece no dia 3 para planejar uma aproximação segura da nave.
 
 Os números são **unidades didáticas de jogo**, não medições de uma missão real. Consulte [mecânicas](docs/GAME_DESIGN.md) e [ciência](docs/SCIENCE.md).
 

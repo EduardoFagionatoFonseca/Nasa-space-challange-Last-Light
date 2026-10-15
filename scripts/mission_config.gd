@@ -9,22 +9,23 @@ const ACTIONS := {
 	"water": {"title": "Reciclar água", "cost": {"energy": 6, "supplies": 3}, "gain": {"water": 19}, "site": "water", "tip": "Recupera água usada pela tripulação e troca filtros se necessário."},
 	"food": {"title": "Cultivar alimentos", "cost": {"energy": 7, "water": 6}, "gain": {"supplies": 19}, "site": "greenhouse", "tip": "Produção acelerada é uma simplificação didática."},
 	"shelter": {"title": "Reforçar abrigo", "cost": {"energy": 5, "supplies": 9}, "gain": {}, "site": "shelter", "tip": "Aumenta a proteção antes da tempestade solar."},
-	"rescue": {"title": "Preparar resgate", "cost": {"energy": 10, "supplies": 6}, "gain": {}, "site": "antenna", "tip": "Complete três etapas: sinal, rota e baliza de pouso."}
+	"rescue": {"title": "Preparar resgate", "cost": {"energy": 10, "supplies": 6}, "gain": {}, "site": "antenna", "tip": "Complete três etapas: sinal, rota e baliza de pouso."},
+	"landing": {"title": "Preparar pouso", "cost": {"energy": 8, "supplies": 6}, "gain": {}, "site": "landing", "tip": "Inspecione a cratera e libere uma área segura para a nave."}
 }
-const ACTION_ORDER := ["solar", "oxygen", "water", "food", "shelter", "rescue"]
+const ACTION_ORDER := ["solar", "oxygen", "water", "food", "shelter", "rescue", "landing"]
 const DAY_TITLES := [
 	"", "Primeiros procedimentos", "Energia comprometida", "Alerta solar",
 	"Tempestade solar", "Crise hídrica", "Preparação final", "Last Light"
 ]
 const DAY_BRIEFS := [
 	"",
-	"A Terra está em silêncio. O resgate chega em sete dias. Escolha até duas ações e mantenha os sistemas vitais.",
+	"A Terra está em silêncio. O resgate chega em sete dias. Cada dia dura 60 segundos: mantenha os sistemas vitais e retorne ao habitat para reabastecer o traje.",
 	"Micrometeoritos danificaram os painéis solares. A geração de energia caiu até o reparo.",
-	"Um aumento de partículas solares foi previsto para amanhã. O abrigo precisa de integridade 60 ou mais.",
-	"A tempestade chegou. O abrigo será testado quando o dia terminar; a geração solar está reduzida.",
+	"Um impacto recente formou uma pequena cratera. Investigue os detritos para planejar o pouso. Um evento solar foi previsto para amanhã: reforce o abrigo.",
+	"A tempestade chegará durante este turno. Quando soar o alerta, entre no habitat. O abrigo precisa de integridade 60 ou mais.",
 	"O filtro de recuperação de água perdeu eficiência. Reciclar água também troca o filtro.",
 	"Um vazamento de oxigênio e uma falha na antena exigem resposta. Produzir oxigênio sela o vazamento; preparar resgate restaura a antena.",
-	"A nave de resgate está próxima. Termine as três etapas e preserve os sistemas vitais até o fim do dia."
+	"A nave de resgate está próxima. Conclua o contato, prepare a zona de pouso e preserve os sistemas vitais até o fim do dia."
 ]
 const SCIENCE := {
 	"solar": "A energia solar é uma opção para a superfície lunar, mas painéis e armazenamento precisam resistir à poeira e aos ciclos de iluminação. Fonte: NASA Lunar Surface Technology.",
