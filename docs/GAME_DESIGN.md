@@ -14,7 +14,7 @@ LAST LIGHT é uma simulação didática de contingência lunar em sete dias de 6
 
 O personagem se move com WASD, setas ou clique. Perto de um módulo, E abre o reparo. No habitat, E entra ou sai; F recarrega o traje. O relógio encerra automaticamente o dia. Na tempestade do dia 4 há aviso prévio; exposição fora do habitat acumula radiação e pode encerrar a missão. A proteção do abrigo deve atingir 60 antes do fim do dia.
 
-Os reparos incluem calibração no tempo certo, sequência de comandos e diagnóstico. Cinco erros em um reparo bloqueiam o módulo até o próximo dia e consomem 8 de energia e 4 suprimentos. Isso pode impedir o resgate ou esgotar recursos.
+Os reparos incluem calibração no tempo certo, sequência de comandos e diagnóstico. As opções de sequência e a leitura anormal mudam de posição entre tentativas; é preciso interpretar o procedimento, não memorizar um botão. Cinco erros em um reparo bloqueiam o módulo até o próximo dia e consomem 8 de energia e 4 suprimentos. Isso pode impedir o resgate ou esgotar recursos. Após um conserto, uma mensagem curta mostra seu efeito. Se o reparo estiver indisponível, a razão aparece no mesmo espaço.
 
 ## Progressão
 

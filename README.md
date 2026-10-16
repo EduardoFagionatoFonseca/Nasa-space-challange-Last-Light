@@ -10,7 +10,7 @@ Jogo curto de exploração e sobrevivência lunar para Godot 4.7. Caminhe pela b
 2. Abra esta pasta como projeto no Godot e execute com **F5**.
 3. Clique em **Iniciar missão**. Leia o objetivo geral e procure os módulos pelo marcador luminoso.
 4. Use **WASD** ou as **setas** para andar. Também é possível clicar no cenário ou em um módulo para caminhar até ele.
-5. Perto de um módulo, pressione **E** para iniciar o reparo. Os desafios incluem calibrar com **Espaço**, escolher uma sequência e diagnosticar uma falha. Cinco erros bloqueiam aquele reparo até o dia seguinte e gastam recursos.
+5. Perto de um módulo, pressione **E** para iniciar o reparo. Os desafios incluem calibrar com **Espaço**, escolher uma sequência e diagnosticar uma falha. A posição das opções varia entre tentativas. Cinco erros bloqueiam aquele reparo até o dia seguinte e gastam recursos.
 6. Volte ao habitat quando o O₂ do traje baixar: **E** entra ou sai, **F** recarrega o traje usando a reserva da base. Durante o alerta solar, procure abrigo imediatamente. **Esc** pausa ou cancela um reparo.
 
 ![Calibração de um reparo na antena](media/repair.png)
@@ -29,6 +29,7 @@ O jogo salva automaticamente após cada reparo e a cada mudança de dia. A opç�
 - O marcador e a frase no canto superior esquerdo mostram o próximo reparo sugerido. Você também pode escolher outro módulo.
 - Luzes vermelhas sinalizam avarias; os quatro indicadores compactos mostram os recursos vitais.
 - Investigue a cratera que aparece no dia 3 para planejar uma aproximação segura da nave.
+- Quando o traje estiver perto de 30% de O₂, o marcador indica o retorno ao habitat. Dentro dele, a integridade do abrigo aparece junto ao comando de recarga.
 
 Os números são **unidades didáticas de jogo**, não medições de uma missão real. Consulte [mecânicas](docs/GAME_DESIGN.md) e [ciência](docs/SCIENCE.md).
 

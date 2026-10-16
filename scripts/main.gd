@@ -59,6 +59,8 @@ var repair_clock: float = 0.0
 var repair_target: float = 0.5
 var repair_mistakes: int = 0
 var puzzle_kind: String = "timing"
+var puzzle_options: Array[String] = []
+var puzzle_round: int = 0
 var suit_warned: bool = false
 var storm_warned: bool = false
 var storm_active_last: bool = false
@@ -84,9 +86,9 @@ func _process(delta: float) -> void:
 	if model.ended:
 		MissionSave.save(model); _show_result(); return
 	if not model.inside_base:
-		model.suit_oxygen = maxf(0.0, model.suit_oxygen - delta * 2.4)
+		model.suit_oxygen = maxf(0.0, model.suit_oxygen - delta * 2.0)
 		if model.suit_oxygen <= 30.0 and not suit_warned:
-			suit_warned = true; sound.cue("warning"); _toast("O₂ do traje baixo • volte ao habitat")
+			suit_warned = true; sound.cue("warning"); _refresh(); _toast("O₂ do traje baixo • volte ao habitat")
 		if model.suit_oxygen <= 0.0:
 			model._fail("O oxigênio do traje acabou antes do retorno ao habitat.")
 			MissionSave.save(model); _show_result(); return
@@ -334,7 +336,7 @@ func _update_prompt() -> void:
 	if repair_action != "": return
 	if model.inside_base:
 		prompt_label.text = "[F] Recarregar traje    [E] Sair"
-		hint_label.text = "O₂ do traje vem da reserva da base • abrigo contra radiação"
+		hint_label.text = "Recarga usa O₂ da base • abrigo %d / 100" % model.shelter
 	elif nearby_site == "":
 		prompt_label.text = "Siga o marcador luminoso"
 		hint_label.text = "WASD / setas para andar  •  clique para ir"
@@ -369,7 +371,7 @@ func _interact() -> void:
 	elif SITE_ACTIONS.has(nearby_site):
 		var action: String = SITE_ACTIONS[nearby_site]
 		if not model.can_do(action):
-			_toast("Sem recursos, dados ou equipamento disponível")
+			_toast(model.action_block_reason(action))
 			sound.cue("warning")
 			return
 		_start_repair(action)
@@ -402,7 +404,7 @@ func _apply_view() -> void:
 func _refill_suit() -> void:
 	if model.refill_suit():
 		suit_warned = false
-		sound.cue("success"); MissionSave.save(model); _refresh_live()
+		sound.cue("success"); MissionSave.save(model); _refresh()
 		_toast("Traje recarregado com O₂ da base")
 	else:
 		sound.cue("warning"); _toast("Reserva de O₂ insuficiente ou traje cheio")
@@ -414,7 +416,7 @@ func _update_storm(delta: float) -> void:
 		return
 	if model.day_seconds_left <= 40.0 and not storm_warned:
 		storm_warned = true; sound.cue("warning")
-		_toast("ALERTA SOLAR • procure abrigo em 10 s")
+		_toast("ALERTA SOLAR • %s" % ("permaneça protegido" if model.inside_base and model.shelter >= 60 else ("abrigo abaixo de 60" if model.shelter < 60 else "entre no habitat em 10 s")))
 	var active: bool = model.day_seconds_left <= 30.0 and model.day_seconds_left > 14.0
 	sun_light.light_color = RED if active else Color("f5dfc0")
 	if active != storm_active_last:
@@ -428,6 +430,7 @@ func _update_storm(delta: float) -> void:
 
 func _start_repair(action: String) -> void:
 	repair_action = action; repair_hits = 0; repair_mistakes = 0
+	puzzle_round += 1
 	repair_clock = 0.0; repair_target = 0.5
 	puzzle_kind = "diagnostic" if action in ["oxygen", "shelter"] else ("sequence" if action in ["solar", "water", "food", "landing"] else "timing")
 	move_target = Vector3.INF
@@ -438,13 +441,19 @@ func _start_repair(action: String) -> void:
 	puzzle_choices.visible = puzzle_kind != "timing"
 	if puzzle_kind == "timing": repair_hint.text = "ESPAÇO no brilho azul • 0 / 2 • erros 0 / 5"
 	elif puzzle_kind == "diagnostic":
-		var labels: Array = ["Linha A 96", "Linha B 61", "Linha C 95"] if action == "oxygen" else ["Selo A 98", "Selo B 97", "Selo C 43"]
-		for i in range(3): choice_buttons[i].text = labels[i]
+		var prefix := "Linha" if action == "oxygen" else "Selo"
+		var abnormal := (model.day + puzzle_round) % 3
+		puzzle_options.clear()
+		for i in range(3):
+			puzzle_options.append("%s %s %d" % [prefix, ["A", "B", "C"][i], 43 if i == abnormal else 96 + i])
+		for i in range(3): choice_buttons[i].text = puzzle_options[i]
 		repair_hint.text = "Isole o ponto com leitura anormal • erros 0 / 5"
 	else:
 		var labels: Array = {"solar": ["O₂", "HAB", "COM"], "water": ["Bomba", "Filtro", "Teste"],
 			"food": ["Água", "Nutrientes", "Luz"], "landing": ["Varrer", "Baliza", "Confirmar"]}[action]
-		for i in range(3): choice_buttons[i].text = labels[i]
+		puzzle_options.clear()
+		for i in range(3): puzzle_options.append(str(labels[(i + model.day + puzzle_round + 1) % 3]))
+		for i in range(3): choice_buttons[i].text = puzzle_options[i]
 		repair_hint.text = _sequence_hint(action) + " • erros 0 / 5"
 	_update_gauge()
 	sound.cue("click")
@@ -458,8 +467,14 @@ func _sequence_hint(action: String) -> String:
 
 func _on_choice(index: int) -> void:
 	if repair_action == "" or puzzle_kind == "timing": return
-	var correct: int = (1 if repair_action == "oxygen" else 2) if puzzle_kind == "diagnostic" else repair_hits
-	if index != correct:
+	var valid := false
+	if puzzle_kind == "diagnostic":
+		valid = puzzle_options[index].ends_with("43")
+	else:
+		var order: Array = {"solar": ["O₂", "HAB", "COM"], "water": ["Bomba", "Filtro", "Teste"],
+			"food": ["Água", "Nutrientes", "Luz"], "landing": ["Varrer", "Baliza", "Confirmar"]}[repair_action]
+		valid = puzzle_options[index] == str(order[repair_hits])
+	if not valid:
 		_puzzle_error()
 		return
 	repair_hits += 1
@@ -512,7 +527,12 @@ func _complete_repair() -> void:
 		sound.cue("success")
 		MissionSave.save(model)
 		_refresh()
-		_toast("Sistema estabilizado")
+		var feedback := {"solar": "Painéis ativos • geração restaurada", "oxygen": "O₂ produzido • água e energia consumidas",
+			"water": "Filtro trocado • água recuperada", "food": "Reservas ampliadas • água consumida",
+			"shelter": "Blindagem reforçada • integridade %d" % model.shelter,
+			"rescue": "Contato de resgate %d / 3 concluído" % model.rescue,
+			"landing": "Zona de pouso liberada para a nave"}
+		_toast(feedback.get(action, "Sistema estabilizado"))
 
 func _cancel_repair() -> void:
 	repair_action = ""
@@ -522,6 +542,7 @@ func _cancel_repair() -> void:
 	_update_prompt()
 
 func _recommendation() -> String:
+	if not model.inside_base and model.suit_oxygen <= 30.0: return "habitat"
 	if model.day == 4 and model.day_seconds_left <= 30.0 and model.day_seconds_left > 14.0: return "habitat"
 	if model.day >= 3 and model.science == 0: return "crater"
 	if int(model.resources["energy"]) < 16 and model.can_do("solar"): return "solar"

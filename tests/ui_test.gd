@@ -46,6 +46,15 @@ func _run() -> void:
 	var restored: MissionModel = MissionSave.load_game()
 	_check(restored != null and restored.won and restored.landing_prepared, "new mission state saved")
 	game._new_game()
+	game.model.suit_oxygen = 29.0; game._refresh()
+	_check(game.objective_site == "habitat", "low suit oxygen guides return")
+	game.model.suit_oxygen = 100.0; game._refresh()
+	_goto(game, "oxygen")
+	game._interact()
+	var first_readings: Array[String] = game.puzzle_options.duplicate()
+	game._cancel_repair(); game._interact()
+	_check(game.puzzle_options != first_readings, "diagnostic fault changes position")
+	game._cancel_repair()
 	_goto(game, "antenna")
 	game._interact()
 	for i in range(5):
@@ -92,9 +101,16 @@ func _repair(game: Node3D, action: String) -> void:
 			for i in range(2):
 				game.gauge_needle.position.x = game.repair_target * maxf(1.0, game.gauge.size.x - 5.0)
 				game._check_repair()
-		"diagnostic": game._on_choice(1 if action == "oxygen" else 2)
+		"diagnostic":
+			for i in range(3):
+				if game.puzzle_options[i].ends_with("43"):
+					game._on_choice(i)
+					break
 		"sequence":
-			for i in range(3): game._on_choice(i)
+			var order: Array = {"solar": ["O₂", "HAB", "COM"], "water": ["Bomba", "Filtro", "Teste"],
+				"food": ["Água", "Nutrientes", "Luz"], "landing": ["Varrer", "Baliza", "Confirmar"]}[action]
+			for label in order:
+				game._on_choice(game.puzzle_options.find(label))
 	_check(game.repair_action == "", "%s completes" % action)
 
 func _next(game: Node3D) -> void:

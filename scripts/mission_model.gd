@@ -47,6 +47,19 @@ func can_do(action: String) -> bool:
 		return false
 	return true
 
+func action_block_reason(action: String) -> String:
+	if ended: return "Missão encerrada"
+	if not MissionConfig.ACTIONS.has(action): return "Módulo indisponível"
+	if locked_actions.get(action, 0) == day: return "Circuito bloqueado até o próximo dia"
+	if action == "rescue" and rescue >= 3: return "Contato de resgate já concluído"
+	if action == "landing" and science == 0: return "Inspecione a cratera antes do pouso"
+	if action == "landing" and landing_prepared: return "Zona de pouso já preparada"
+	if action == "solar" and panels_ok and int(resources["energy"]) >= 90: return "Painéis funcionando e bateria quase cheia"
+	for key in MissionConfig.ACTIONS[action]["cost"]:
+		if int(resources[key]) < int(MissionConfig.ACTIONS[action]["cost"][key]):
+			return "Falta %s para este reparo" % _resource_name(key)
+	return "Ação indisponível"
+
 func do_action(action: String) -> bool:
 	if not can_do(action):
 		return false

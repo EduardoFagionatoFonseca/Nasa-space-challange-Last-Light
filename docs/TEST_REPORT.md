@@ -1,4 +1,4 @@
-# Relatório de testes — 15/10/2026
+# Relatório de testes — 16/10/2026
 
 Ambiente local: Godot 4.7 estável, Windows, renderizador GL Compatibility, capturas em 1280 × 720.
 
@@ -6,11 +6,11 @@ Ambiente local: Godot 4.7 estável, Windows, renderizador GL Compatibility, capt
 
 - `model_test.gd`: relógio e consumo contínuo, oxigênio do traje, recarga com reserva da base, inspeção da cratera, preparação do pouso, cinco erros de reparo, salvamento e vitória ou derrota.
 - `balance_test.gd`: campanha guiada dos sete dias e consequências de recursos e requisitos de resgate.
-- `ui_test.gd`: entrada no habitat, perigos de oxigênio e radiação, diferentes reparos e campanha até a vitória.
+- `ui_test.gd`: entrada no habitat, orientação de retorno com O₂ baixo, leitura anormal que muda de posição, perigos de oxigênio e radiação, diferentes reparos e campanha até a vitória.
 - `assets_test.gd`: sete modelos Kenney carregam como meshes válidos.
 - Capturas visuais: exterior, interior, cratera, tempestade e sequência de reparo. O interior foi ajustado após uma captura que mostrou luz excessiva.
 
-Os quatro testes passaram localmente em 15/10/2026. A automação verifica regras e fluxos; a sensação de movimento, a dificuldade e a legibilidade em outros monitores ainda exigem partidas humanas.
+Os quatro testes passaram localmente em 16/10/2026. A automação verifica regras e fluxos; a sensação de movimento, a dificuldade e a legibilidade em outros monitores ainda exigem partidas humanas.
 
 ## Exportação
 

@@ -17,7 +17,7 @@ func _initialize() -> void:
 	_check(not m.can_do("water") and m.resources["energy"] < 100, "five mistakes lock repair and cost resources")
 	m.tick(60.0); m.end_day()
 	_check(m.day == 3 and m.can_do("water"), "repair unlocks next day")
-	_check(not m.can_do("landing"), "landing requires impact assessment")
+	_check(not m.can_do("landing") and m.action_block_reason("landing").contains("cratera"), "landing requires impact assessment")
 	_check(m.inspect_anomaly() and m.science == 1 and m.can_do("landing"), "crater unlocks landing")
 	m.inside_base = true; m.suit_oxygen = 49.0
 	var base_oxygen: int = m.resources["oxygen"]
